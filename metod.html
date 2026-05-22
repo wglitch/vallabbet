@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Metod - Vallabbet</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell method-page">
+      <header class="masthead method-masthead">
+        <div>
+          <p class="kicker">Vallabbet prototyp</p>
+          <h1>Så tänker prototypen</h1>
+        </div>
+        <a class="back-link" href="index.html">Till analysvyn</a>
+      </header>
+
+      <section class="method-copy" aria-label="Metod">
+        <article>
+          <h2>Varför den finns</h2>
+          <p>Under en valkväll kan det tidiga läget luta åt fel håll om vissa slags områden rapporterar snabbare än andra. Vallabbet försöker därför skilja på röster som faktiskt är inne och en försiktig prognos för vart resultatet pekar när de räknade områdena jämförs med tidigare val.</p>
+        </article>
+
+        <article>
+          <h2>Vad som jämförs</h2>
+          <p>Först använder prototypen valdistrikt som går att jämföra mellan 2018 och 2022. När distrikt har ritats om samlas den del som inte går att jämföra distrikt för distrikt i en kommunrest. Den resten får komma med först när hela den jämförbara resten i kommunen är inne.</p>
+          <p>Det gör att län kan se tröga ut lokalt även när mycket händer i resten av landet. Då väntar modellen på ett större lokalt jämförelseområde, inte på någon mystisk röstmassa.</p>
+        </article>
+
+        <article>
+          <h2>Hur prognosen byggs</h2>
+          <p>För varje område som ännu inte är inne letar prototypen efter räknade områden som liknar det så mycket som underlaget tillåter. Den börjar med kommuntyp och tidigare röstmönster, backar sedan till bredare kommungrupper, län eller rikstrend om det lokala underlaget ännu är tunt.</p>
+          <p>Prognosen applicerar den observerade förändringen på det historiska röstläget i kvarvarande jämförelseområden. Den är ett analysstöd, inte ett officiellt resultat.</p>
+        </article>
+
+        <article>
+          <h2>Vad som återstår</h2>
+          <p>Replayläget här är en simulator som ordnar valdistrikt efter storlek. Nästa viktiga kontroll är riktig rapporteringsordning från valnatten 2022, granskning av statistiker och fortsatt backtest mot officiella sluttal för den del av rösträkningen som är relevant under valkvällen.</p>
+        </article>
+      </section>
+
+      <footer class="source-note source-note-page">
+        <strong>Källa: Valmyndigheten.</strong>
+        <span>2022-prototypen bygger på Valmyndighetens preliminära riksdagsresultat per valdistrikt och jämförelsefil för 2018 och 2022. Kommungruppsindelningen kommer från SKR.</span>
+      </footer>
+    </main>
+  </body>
+</html>
