@@ -13,15 +13,6 @@ sums raw and forecast vote shares for presets or any clicked party combination.
 It deliberately does not infer mandates, thresholds, or government viability
 until the mandate model has been reviewed.
 
-## Run
-
-Open `index.html` directly or serve this directory locally:
-
-```powershell
-& 'C:\Users\wackn\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m http.server 4173 --bind 127.0.0.1
-```
-
-Then open `http://127.0.0.1:4173/`.
 
 ## Data
 
@@ -31,15 +22,6 @@ The generator expects these Valmyndigheten files in the project root:
 - `2018_R_per_valdistrikt.xlsx`
 - `jamforelser-2018-2022.xlsx`
 - `kommungruppsindelning-2023.xlsx` from SKR
-
-Run:
-
-```powershell
-& 'C:\Users\wackn\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' .\build_data.py
-```
-
-It writes `data/riksdag-2022-replay.json` for server use and
-`data/riksdag-2022-replay.js` so the static prototype can be opened directly.
 
 ## Current method
 
@@ -75,12 +57,6 @@ It writes `data/riksdag-2022-replay.json` for server use and
   in Valmyndigheten's preliminary val-night result.
 
 ## Backtest note
-
-Run:
-
-```powershell
-& 'C:\Users\wackn\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' .\backtest.py
-```
 
 It writes `backtest-2022.md`, which compares raw counted shares, a national
 comparison forecast, and the adjusted forecast at several replay checkpoints.
