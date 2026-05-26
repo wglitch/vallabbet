@@ -14,7 +14,7 @@ and shows a calibrated uncertainty span for the whole constellation. It
 deliberately does not infer mandates, thresholds, or government viability until
 the mandate model has been reviewed.
 
-## Run
+## Run 
 
 Open `index.html` directly or serve this directory locally:
 
