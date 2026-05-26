@@ -7,6 +7,7 @@ import pandas as pd
 
 
 ROOT = Path(__file__).parent
+TIMING_FILE = ROOT / "val2022-inrapporteringstider.xlsx"
 PARTIES = {
     "Moderaterna": "M",
     "Centerpartiet": "C",
@@ -39,10 +40,26 @@ def number(value) -> int:
     return int(value)
 
 
+def load_reporting_times() -> dict[int, str]:
+    if not TIMING_FILE.exists():
+        return {}
+    source = pd.read_excel(TIMING_FILE)
+    source["code"] = source["DISTRIKTKOD"].map(number)
+    source["time"] = pd.to_datetime(source["TID_RD"], errors="coerce")
+    return {
+        int(row["code"]): row["time"].isoformat()
+        for _, row in source.dropna(subset=["time"]).iterrows()
+    }
+
+
 def load_2022() -> dict[int, dict]:
+    reporting_times = load_reporting_times()
     source = pd.read_excel(ROOT / "preliminart-roster-per-distrikt-riksdagsvalet-2022.xlsx")
     source["code"] = source["Distrikt"].map(id_from_2022)
-    physical = source[source["code"].astype(str).str[-4:] != "0000"]
+    if reporting_times:
+        physical = source[source["code"].isin(reporting_times)]
+    else:
+        physical = source[source["Kommun"].notna() & (source["code"].astype(str).str[-4:] != "0000")]
     districts = {}
 
     for code, rows in physical.groupby("code", sort=False):
@@ -59,6 +76,7 @@ def load_2022() -> dict[int, dict]:
             "constituency": str(first["Valkrets"]),
             "electorate": number(turnout["Röstberättigade"]),
             "valid22": valid,
+            "reportingTimeRD": reporting_times.get(int(code)),
             "votes22": {
                 short: number(vote_rows.loc[full_name, "Röster"])
                 for full_name, short in PARTIES.items()
@@ -68,7 +86,10 @@ def load_2022() -> dict[int, dict]:
 
 
 def add_physical_replay_positions(districts: dict[int, dict]) -> None:
-    ordered = sorted(districts.values(), key=lambda district: (district["valid22"], district["id"]))
+    if any(district.get("reportingTimeRD") for district in districts.values()):
+        ordered = sorted(districts.values(), key=lambda district: (district.get("reportingTimeRD") or "9999", district["id"]))
+    else:
+        ordered = sorted(districts.values(), key=lambda district: (district["valid22"], district["id"]))
     for position, district in enumerate(ordered):
         district["physicalReplayOrder"] = position
 
@@ -240,6 +261,7 @@ def municipality_remainders(physical: dict[int, dict], comparable: list[dict]) -
             "votes22": current["votes"],
             "componentDistricts": len(current_components),
             "physicalReplayOrder": max(area["physicalReplayOrder"] for area in current_components),
+            "reportingTimeRD": max(area.get("reportingTimeRD") or "" for area in current_components) or None,
         }
         remainder.update(
             municipal_groups.get(
@@ -266,7 +288,7 @@ def add_replay_order(districts: list[dict]) -> None:
 def write_dataset(districts: list[dict]) -> None:
     payload = {
         "source": "Valmyndigheten preliminary district count for the 2022 Riksdag election, 2018 district results, and 2018-2022 district comparison file.",
-        "method": "Comparable physical districts plus synthetic municipality remainder areas. A remainder appears after all its 2022 physical component districts have appeared in the size-first replay. Municipality groups use SKR 2023.",
+        "method": "Comparable physical districts plus synthetic municipality remainder areas. A remainder appears after all its 2022 physical component districts have appeared in the official 2022 TID_RD reporting order when that file is present. Municipality groups use SKR 2023.",
         "parties": PARTY_META,
         "districts": districts,
     }

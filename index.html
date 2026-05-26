@@ -30,15 +30,19 @@
           <span>Räkningsläge</span>
           <strong id="coverage-label">-</strong>
         </label>
-        <input id="coverage" type="range" min="1" max="100" value="18">
+        <div class="time-control">
+          <input id="coverage" type="range" min="0" max="100" value="0">
+          <div id="time-scale" class="time-scale" aria-hidden="true"></div>
+        </div>
         <div class="mode-note">
-          <span id="mode-pill">Simulator</span>
-          <p>Sliderläget ordnar valdistrikt storleksmässigt för att spegla tidig valnatt. Kommunrester blir jämförbara när hela resten är inne. Protokolltider kan kopplas in senare.</p>
+          <span id="mode-pill">Replay 2022</span>
+          <p>Tidsaxeln följer Valmyndighetens TID_RD-ordning för riksdagsrapporteringen 2022. Omritade distrikt samlas i större jämförelseområden när hela området är inne.</p>
         </div>
       </section>
 
       <nav class="view-tabs" aria-label="Analysvy">
         <button type="button" aria-selected="true" data-view="overview">Riksdag</button>
+        <button type="button" aria-selected="false" data-view="political">Politiskt läge</button>
         <button type="button" aria-selected="false" data-view="party">Partier</button>
         <button type="button" aria-selected="false" data-view="county">Län</button>
         <a href="metod.html">Metod</a>
@@ -46,23 +50,23 @@
 
       <section class="method-strip" aria-label="Metod i prototypen">
         <strong>Prototypmetod</strong>
-        <p>Kolumnen Just nu visar röster som finns i jämförelseunderlaget. Prognosen jämför valdistrikt och kommunrester med samma områden 2018 och använder liknande kommuner och tidigare röstmönster för det som ännu inte är inne.</p>
+        <p>Kolumnen Av räknade röster visar aktuellt val i det underlag som kommit in. Prognosen jämför samma områden med förra valet, väger in lokal jämförelse när underlaget är starkt och visar ett kalibrerat osäkerhetsspann.</p>
       </section>
 
       <section class="dashboard view-panel" data-view-panel="overview" aria-label="Riksdagsanalys">
         <article class="panel lead">
           <div class="panel-head">
-            <h2>Just nu mot prognos</h2>
-            <p>Andel i räknat jämförelseunderlag just nu jämfört med prognosen.</p>
+            <h2>Av räknade röster mot prognos</h2>
+            <p>Andel i räknat jämförelseunderlag i aktuellt val jämfört med Vallabbets prognos.</p>
           </div>
-          <label class="opinion-toggle" for="opinion-toggle">
+          <label class="opinion-toggle hidden" for="opinion-toggle">
             <input id="opinion-toggle" type="checkbox">
-            <span>Visa opinionsläge</span>
+            <span>Visa opinionsreferens</span>
           </label>
           <div id="party-table" class="party-table"></div>
           <aside id="opinion-note" class="opinion-note hidden" aria-live="polite">
             <strong>Opinionsläge före valet</strong>
-            <p>Placeholder för sammanvägt opinionsläge eller vald opinionskälla. Extern referens, ingår inte i prognosen.</p>
+            <p>Extern redaktionell referens från configfil. Ingår inte i prognosen.</p>
           </aside>
         </article>
 
@@ -73,18 +77,9 @@
           </div>
           <div id="radio-line" class="radio-line"></div>
         </article>
+      </section>
 
-        <article class="panel mandate-panel">
-          <div class="panel-head">
-            <h2>Mandat om prognosen står sig</h2>
-            <p>Plats för spärrar, valkretsar och utjämningsmandat efter metodgranskning.</p>
-          </div>
-          <div class="mandate-placeholder">
-            <strong>349 mandat</strong>
-            <p>Mandatberäkningen läggs in när prognosmodellen och valkretsunderlaget har backtestats.</p>
-          </div>
-        </article>
-
+      <section class="political-view view-panel hidden" data-view-panel="political" aria-label="Politiskt läge">
         <article class="panel coalition-panel wide">
           <div class="panel-head">
             <h2>Politiskt läge</h2>
@@ -98,7 +93,7 @@
             </section>
             <section id="coalition-result" class="coalition-result" aria-live="polite"></section>
           </div>
-          <p class="coalition-note">Visar röstandelar, inte mandat. Spärrar, valkretsar och riksdagsmajoritet kommer med mandatmodellen.</p>
+          <p class="coalition-note">Visar röstandelar med osäkerhet, inte mandat. Spärrar, valkretsar och riksdagsmajoritet kommer med mandatmodellen.</p>
         </article>
       </section>
 
@@ -107,7 +102,7 @@
           <div class="panel-head party-head">
             <div>
               <h2>Partier</h2>
-              <p>Följ ett parti genom riket, län och distrikt.</p>
+              <p>Följ ett parti genom riket, län och distrikt i aktuellt val jämfört med förra valet.</p>
             </div>
             <div id="party-tabs" class="party-tabs" role="tablist" aria-label="Parti"></div>
           </div>
@@ -135,7 +130,7 @@
           <div class="panel-head county-head">
             <div>
               <h2>Län</h2>
-              <p>Partierna i ett län: röster inne just nu och prognos i samma vy.</p>
+              <p>Partierna i ett län: av räknade röster och prognos i samma vy.</p>
             </div>
             <label for="county-select">
               <span>Län</span>
@@ -154,7 +149,7 @@
         <span>Prototypen använder preliminära riksdagsdata från 2022 och Valmyndighetens jämförelseunderlag för valdistrikt. Kommungrupper kommer från SKR.</span>
       </footer>
     </main>
-    <script src="data/riksdag-2022-replay.js?v=kommunrester"></script>
-    <script src="app.js"></script>
+    <script src="data/riksdag-2022-replay.js?v=tid-rd"></script>
+    <script src="app.js?v=political-opinion-config"></script>
   </body>
 </html>

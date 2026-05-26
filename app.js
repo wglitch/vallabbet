@@ -1,5 +1,7 @@
 const coverageInput = document.querySelector("#coverage");
 const coverageLabel = document.querySelector("#coverage-label");
+const coverageTitle = document.querySelector('label[for="coverage"] span');
+const timeScale = document.querySelector("#time-scale");
 const countedDistricts = document.querySelector("#counted-districts");
 const countedVotes = document.querySelector("#counted-votes");
 const partyTable = document.querySelector("#party-table");
@@ -20,28 +22,24 @@ const coalitionParties = document.querySelector("#coalition-parties");
 const coalitionResult = document.querySelector("#coalition-result");
 const percent = new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const integer = new Intl.NumberFormat("sv-SE");
+const clock = new Intl.DateTimeFormat("sv-SE", { hour: "2-digit", minute: "2-digit" });
+const dayClock = new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 let payload;
+let timeline;
 let focusParty = "S";
 let selectedCounty = "Jämtland";
 let showOpinion = false;
 let selectedCoalition = new Set(["M", "KD", "L", "SD"]);
-
-const opinionPlaceholder = {
-  M: null,
-  C: null,
-  L: null,
-  KD: null,
-  S: null,
-  V: null,
-  MP: null,
-  SD: null,
-};
+let opinionReference = null;
 
 const coalitionOptions = [
   { name: "Tidöpartierna", parties: ["M", "KD", "L", "SD"] },
   { name: "S + V + C + MP", parties: ["S", "V", "C", "MP"] },
 ];
+
+const neighborMinAreas = 8;
+const neighborMinVotes = 6500;
 
 const strata = [
   {
@@ -88,6 +86,23 @@ const strata = [
   },
 ];
 
+function areaCountyCode(area) {
+  return area.countyCode || String(area.municipalityCode || "").slice(0, 2) || area.county;
+}
+
+function neighborKeys(area) {
+  const county = areaCountyCode(area);
+  return [
+    `municipality:${area.municipalityCode}`,
+    `county-type-profile:${county}|${area.municipalityType}|${area.historicProfile}`,
+    `county-type:${county}|${area.municipalityType}`,
+    `county-profile:${county}|${area.historicProfile}`,
+    `county:${county}`,
+    `type-profile:${area.municipalityType}|${area.historicProfile}`,
+    "national",
+  ];
+}
+
 function sumDistricts(districts, validKey, voteKey) {
   const total = { valid: 0 };
   Object.keys(payload.parties).forEach((party) => total[party] = 0);
@@ -112,6 +127,82 @@ function signed(value) {
   return `${value > 0 ? "+" : ""}${percent.format(value)}`;
 }
 
+function uncertaintyLabel(value) {
+  return `±${percent.format(value)}`;
+}
+
+function reportMs(district) {
+  return Date.parse(district.reportingTimeRD || district.reportingTime);
+}
+
+function minutesBetween(startMs, endMs) {
+  return Math.max(0, Math.round((endMs - startMs) / 60000));
+}
+
+function formatReplayTime(ms) {
+  const date = new Date(ms);
+  const firstDate = new Date(timeline.minMs);
+  if (date.toDateString() === firstDate.toDateString()) {
+    return `kl. ${clock.format(date)}`;
+  }
+  return dayClock.format(date);
+}
+
+function setupTimeline() {
+  coverageTitle.textContent = "Tid i replayen";
+  payload.districts.forEach((district) => {
+    district.reportMs = reportMs(district);
+  });
+  payload.districts.sort((a, b) => a.reportMs - b.reportMs);
+
+  const validTimes = payload.districts
+    .map((district) => district.reportMs)
+    .filter(Number.isFinite);
+  const minMs = Math.min(...validTimes);
+  const maxMs = Math.max(...validTimes);
+  const preferredNightEnd = Date.parse("2022-09-12T01:00:00");
+  const nightEndMs = Math.min(maxMs, Math.max(minMs, preferredNightEnd));
+  const nightMinutes = minutesBetween(minMs, nightEndMs);
+  const finalStep = nightMinutes + 12;
+
+  timeline = { minMs, maxMs, nightEndMs, nightMinutes, finalStep };
+  coverageInput.min = "0";
+  coverageInput.max = String(finalStep);
+  coverageInput.step = "1";
+  coverageInput.value = String(Math.min(finalStep, minutesBetween(minMs, Date.parse("2022-09-11T21:43:00"))));
+
+  const marks = [
+    { label: clock.format(new Date(minMs)), step: 0 },
+    { label: "21", step: minutesBetween(minMs, Date.parse("2022-09-11T21:00:00")) },
+    { label: "22", step: minutesBetween(minMs, Date.parse("2022-09-11T22:00:00")) },
+    { label: "23", step: minutesBetween(minMs, Date.parse("2022-09-11T23:00:00")) },
+    { label: "00", step: minutesBetween(minMs, Date.parse("2022-09-12T00:00:00")) },
+    { label: "01", step: nightMinutes },
+    { label: "slut", step: finalStep },
+  ].filter((mark) => mark.step >= 0 && mark.step <= finalStep);
+
+  timeScale.innerHTML = marks.map((mark) => `
+    <span style="left:${mark.step / finalStep * 100}%">${mark.label}</span>
+  `).join("");
+}
+
+function currentCutoff() {
+  const step = Number(coverageInput.value);
+  if (step > timeline.nightMinutes) {
+    return { ms: timeline.maxMs, isFinal: true };
+  }
+  return { ms: timeline.minMs + step * 60000, isFinal: false };
+}
+
+function splitByTime(cutoffMs) {
+  const take = payload.districts.findIndex((district) => district.reportMs > cutoffMs);
+  const end = take === -1 ? payload.districts.length : Math.max(1, take);
+  return {
+    counted: payload.districts.slice(0, end),
+    uncounted: payload.districts.slice(end),
+  };
+}
+
 function groupBy(districts, key) {
   return districts.reduce((groups, district) => {
     const groupKey = key(district);
@@ -134,6 +225,18 @@ function makeModel(counted) {
   return { stats, counted: makeStat(counted) };
 }
 
+function makeNeighborModel(counted) {
+  const groups = new Map();
+  counted.forEach((district) => {
+    neighborKeys(district).forEach((key) => {
+      groups.set(key, [...(groups.get(key) || []), district]);
+    });
+  });
+  const stats = new Map();
+  groups.forEach((districts, key) => stats.set(key, makeStat(districts)));
+  return { stats };
+}
+
 function chooseStratum(model, district) {
   for (const layer of strata) {
     const key = layer.key(district);
@@ -143,6 +246,38 @@ function chooseStratum(model, district) {
     }
   }
   return { source: "riket", stat: model.stats.get("national") };
+}
+
+function chooseNeighborStat(model, district) {
+  for (const key of neighborKeys(district)) {
+    const stat = model.stats.get(key);
+    if (stat && stat.districts >= neighborMinAreas && stat.baseline.valid >= neighborMinVotes) {
+      return { source: key.split(":")[0], stat };
+    }
+  }
+  return { source: "national", stat: model.stats.get("national") };
+}
+
+function neighborBlendWeight(currentVotes, uncountedVotes) {
+  if (!uncountedVotes) return 0;
+  if (currentVotes >= 2500000) return .6;
+  if (currentVotes >= 1500000) return .35;
+  if (currentVotes >= 900000) return .15;
+  return 0;
+}
+
+function uncertaintyFrom(currentVotes, uncountedVotes, blendWeight) {
+  let span = 1.4;
+  if (currentVotes >= 5100000) span = .12;
+  else if (currentVotes >= 4000000) span = .16;
+  else if (currentVotes >= 2500000) span = .22;
+  else if (currentVotes >= 1500000) span = .28;
+  else if (currentVotes >= 900000) span = .35;
+  else if (currentVotes >= 350000) span = .55;
+  else if (currentVotes >= 100000) span = .85;
+  if (blendWeight >= .5) span = Math.max(.12, span - .04);
+  if (!uncountedVotes) span = .10;
+  return span;
 }
 
 function confidenceFrom(countedStat, sourceMix) {
@@ -180,31 +315,52 @@ function forecastRows(counted, uncounted, model) {
   const baseline = sumDistricts(counted, "valid18", "votes18");
   const uncountedBaseline = sumDistricts(uncounted, "valid18", "votes18");
   const forecastVotes = {};
+  const neighborVotes = {};
   const sourceMix = { total: 0, stratified: 0, sources: new Set() };
-  Object.keys(payload.parties).forEach((party) => forecastVotes[party] = current[party]);
+  const neighborModel = makeNeighborModel(counted);
+  const neighborMix = { total: 0, local: 0, sources: new Set() };
+  const blendWeight = neighborBlendWeight(current.valid, uncountedBaseline.valid);
+  Object.keys(payload.parties).forEach((party) => {
+    forecastVotes[party] = current[party];
+    neighborVotes[party] = current[party];
+  });
 
   uncounted.forEach((district) => {
     const choice = chooseStratum(model, district);
+    const neighborChoice = chooseNeighborStat(neighborModel, district);
     sourceMix.total += district.valid18;
     sourceMix.sources.add(choice.source);
     if (choice.source !== "riket") {
       sourceMix.stratified += district.valid18;
     }
+    neighborMix.total += district.valid18;
+    neighborMix.sources.add(neighborChoice.source);
+    if (neighborChoice.source !== "national") {
+      neighborMix.local += district.valid18;
+    }
     Object.keys(payload.parties).forEach((party) => {
       const districtBase = district.votes18[party] / district.valid18 * 100;
       const delta = swing(choice.stat.current, choice.stat.baseline, party);
-      const projectedShare = Math.max(0, districtBase + delta);
-      forecastVotes[party] += projectedShare / 100 * district.valid18;
+      const neighborDelta = swing(neighborChoice.stat.current, neighborChoice.stat.baseline, party);
+      forecastVotes[party] += Math.max(0, districtBase + delta) / 100 * district.valid18;
+      neighborVotes[party] += Math.max(0, districtBase + neighborDelta) / 100 * district.valid18;
     });
   });
 
   const forecastScale = current.valid + uncountedBaseline.valid;
+  const uncertainty = uncertaintyFrom(current.valid, uncountedBaseline.valid, blendWeight);
   const rows = Object.entries(payload.parties).map(([party, meta]) => ({
     party,
     ...meta,
     raw: share(current, party),
     delta: swing(current, baseline, party),
-    forecast: forecastVotes[party] / forecastScale * 100,
+    adjustedForecast: forecastVotes[party] / forecastScale * 100,
+    neighborForecast: neighborVotes[party] / forecastScale * 100,
+    forecast: (
+      forecastVotes[party] * (1 - blendWeight)
+      + neighborVotes[party] * blendWeight
+    ) / forecastScale * 100,
+    uncertainty,
   })).sort((a, b) => b.forecast - a.forecast);
 
   return {
@@ -214,6 +370,9 @@ function forecastRows(counted, uncounted, model) {
     uncountedBaseline,
     confidence: confidenceFrom({ current }, sourceMix),
     sourceMix,
+    neighborMix,
+    blendWeight,
+    uncertainty,
   };
 }
 
@@ -221,11 +380,16 @@ function confidenceBadge(confidence) {
   return `<span class="confidence ${confidence.level}">${confidence.label}</span>`;
 }
 
+function opinionValue(party) {
+  const value = opinionReference?.parties?.[party];
+  return Number.isFinite(value) ? `${percent.format(value)}%` : "–";
+}
+
 function renderRows(target, rows, confidence, options = {}) {
   const showOpinionColumn = options.showOpinion === true;
   target.innerHTML = `
     <div class="party-row labels ${showOpinionColumn ? "with-opinion" : ""}">
-      <span>Parti</span><span>Just nu</span><span>Förändring</span><span>Prognos</span>${showOpinionColumn ? "<span>Opinion</span>" : ""}
+      <span>Parti</span><span>Av räknade röster</span><span>Jämfört med förra valet</span><span>Prognos</span><span>Osäkerhet</span>${showOpinionColumn ? "<span>Opinion</span>" : ""}
     </div>
     ${rows.map((row) => `
       <div class="party-row ${showOpinionColumn ? "with-opinion" : ""}">
@@ -233,7 +397,8 @@ function renderRows(target, rows, confidence, options = {}) {
         <span>${percent.format(row.raw)}%</span>
         <span class="${row.delta >= 0 ? "rise" : "fall"}">${signed(row.delta)}</span>
         <strong title="${confidence.label}">${percent.format(row.forecast)}%</strong>
-        ${showOpinionColumn ? `<span class="opinion-value">${opinionPlaceholder[row.party] === null ? "Referens" : `${percent.format(opinionPlaceholder[row.party])}%`}</span>` : ""}
+        <span class="uncertainty" title="Kalibrerad mot 2022-replay. Sena röster återstår.">${uncertaintyLabel(row.uncertainty)}</span>
+        ${showOpinionColumn ? `<span class="opinion-value">${opinionValue(row.party)}</span>` : ""}
         <b style="--fill:${row.forecast}%;--party:${row.color}"></b>
       </div>
     `).join("")}
@@ -241,12 +406,16 @@ function renderRows(target, rows, confidence, options = {}) {
 }
 
 function coalitionTotals(rows, parties) {
-  return rows
-    .filter((row) => parties.includes(row.party))
-    .reduce((total, row) => ({
+  const chosen = rows.filter((row) => parties.includes(row.party));
+  const totals = chosen.reduce((total, row) => ({
       raw: total.raw + row.raw,
       forecast: total.forecast + row.forecast,
     }), { raw: 0, forecast: 0 });
+  const baseUncertainty = chosen.length ? Math.max(...chosen.map((row) => row.uncertainty)) : rows[0]?.uncertainty || 1;
+  return {
+    ...totals,
+    uncertainty: baseUncertainty * (chosen.length >= 3 ? 1.15 : 1),
+  };
 }
 
 function partyLabel(parties) {
@@ -259,8 +428,8 @@ function renderCoalitions(rows) {
     return `
       <button type="button" data-parties="${option.parties.join(",")}" title="Använd som egen konstellation">
         <strong>${option.name}</strong>
-        <span>Prognos ${percent.format(totals.forecast)}%</span>
-        <small>Just nu ${percent.format(totals.raw)}%</small>
+        <span>${percent.format(totals.forecast)}% ${uncertaintyLabel(totals.uncertainty)}</span>
+        <small>Av räknade röster ${percent.format(totals.raw)}%. Sena röster återstår.</small>
       </button>
     `;
   }).join("");
@@ -297,9 +466,14 @@ function renderCoalitions(rows) {
       <b>${percent.format(totals.forecast)}%</b>
     </div>
     <div>
-      <span>Just nu</span>
+      <span>Osäkerhet</span>
+      <b>${uncertaintyLabel(totals.uncertainty)}</b>
+    </div>
+    <div>
+      <span>Av räknade röster</span>
       <b>${percent.format(totals.raw)}%</b>
     </div>
+    <p class="coalition-result-note">Osäkerheten är kalibrerad på hela konstellationen, inte hoplagd parti för parti.</p>
   `;
 }
 
@@ -312,7 +486,7 @@ function renderTabs() {
   partyTabs.querySelectorAll("button").forEach((button) => {
     button.addEventListener("click", () => {
       focusParty = button.dataset.party;
-      render();
+      renderTimeReplay();
     });
   });
 }
@@ -351,14 +525,14 @@ function renderSignals(counted) {
     <div class="signal">
       <strong>${row.county}</strong>
       <span class="${row.swing >= 0 ? "rise" : "fall"}">${focusParty} ${signed(row.swing)}</span>
-      <small>${row.districts} jämförelseområden inne, ${percent.format(row.then)}% till ${percent.format(row.now)}%</small>
+      <small>${row.districts} jämförelseområden inne, från ${percent.format(row.then)}% förra valet till ${percent.format(row.now)}% i aktuellt val</small>
     </div>
   `).join("");
   districtSignals.innerHTML = districtRows.map((row) => `
     <div class="signal">
       <strong>${row.district.municipality}</strong>
       <span class="${row.swing >= 0 ? "rise" : "fall"}">${focusParty} ${signed(row.swing)}</span>
-      <small>${row.district.name}, ${row.district.historicProfile}, ${percent.format(row.then)}% till ${percent.format(row.now)}%</small>
+      <small>${row.district.name}, ${row.district.historicProfile}, från ${percent.format(row.then)}% förra valet till ${percent.format(row.now)}% i aktuellt val</small>
     </div>
   `).join("");
 }
@@ -390,6 +564,14 @@ function methodExplainer(sourceMix) {
   `;
 }
 
+function hybridNote(result) {
+  if (result.blendWeight < .1) {
+    return "Huvudprognosen bygger här på viktad jämförelse mot förra valet.";
+  }
+  const localShare = result.neighborMix.total ? result.neighborMix.local / result.neighborMix.total * 100 : 0;
+  return `Huvudprognosen väger också in lokal jämförelse för kvarvarande områden. ${percent.format(localShare)}% av kvarvarande underlag har lokal jämförelse.`;
+}
+
 function renderFocus(result) {
   const row = result.rows.find((party) => party.party === focusParty);
   const now = share(result.current, focusParty);
@@ -400,8 +582,9 @@ function renderFocus(result) {
       <strong>${signed(row.delta)} <em>procentenheter</em></strong>
     </div>
     ${confidenceBadge(result.confidence)}
-    <p>I hittills räknade jämförelseområden ligger ${row.name} på ${percent.format(now)}%, mot ${percent.format(then)}% i samma områden 2018.</p>
-    <p>Prognosen pekar mot ${percent.format(row.forecast)}%. ${result.confidence.note}</p>
+    <p>I hittills räknade jämförelseområden ligger ${row.name} på ${percent.format(now)}% i aktuellt val, mot ${percent.format(then)}% i samma områden förra valet.</p>
+    <p>Prognosen pekar mot ${percent.format(row.forecast)}%, med osäkerhet ${uncertaintyLabel(row.uncertainty)}. ${result.confidence.note}</p>
+    <p class="quiet">${hybridNote(result)} Sena röster återstår.</p>
     ${methodExplainer(result.sourceMix)}
   `;
 }
@@ -411,11 +594,18 @@ function renderRadioLine(result) {
   const leader = result.rows[0];
   const move = moves[0];
   const runnerUp = result.rows[1];
+  const tido = coalitionTotals(result.rows, coalitionOptions[0].parties);
+  const opposition = coalitionTotals(result.rows, coalitionOptions[1].parties);
+  const blockLeader = tido.forecast >= opposition.forecast ? coalitionOptions[0] : coalitionOptions[1];
+  const blockRunner = tido.forecast >= opposition.forecast ? coalitionOptions[1] : coalitionOptions[0];
+  const blockLeadTotals = tido.forecast >= opposition.forecast ? tido : opposition;
+  const blockRunnerTotals = tido.forecast >= opposition.forecast ? opposition : tido;
   radioLine.innerHTML = `
     ${confidenceBadge(result.confidence)}
-    <p>Prognosen sätter <strong>${leader.name}</strong> först på ${percent.format(leader.forecast)}%, före ${runnerUp.name} på ${percent.format(runnerUp.forecast)}%.</p>
-    <p>Den tydligaste rörelsen i de räknade jämförelseområdena är <strong>${move.name}</strong>: ${signed(move.delta)} procentenheter mot 2018.</p>
-    <p class="quiet">Just nu omfattar jämförelseunderlaget ${integer.format(result.current.valid)} giltiga röster. Det är observationen; prognosen är tolkningsstödet.</p>
+    <p>Prognosen pekar mot ett övertag för <strong>${blockLeader.name}</strong>: ${percent.format(blockLeadTotals.forecast)}% med osäkerhet ${uncertaintyLabel(blockLeadTotals.uncertainty)}, mot ${blockRunner.name} på ${percent.format(blockRunnerTotals.forecast)}%.</p>
+    <p><strong>${leader.name}</strong> ser ut att bli största parti på ${percent.format(leader.forecast)}%, före ${runnerUp.name} på ${percent.format(runnerUp.forecast)}%.</p>
+    <p>Den tydligaste rörelsen i de räknade jämförelseområdena är <strong>${move.name}</strong>: ${signed(move.delta)} procentenheter jämfört med förra valet.</p>
+    <p class="quiet">Av räknade röster omfattar jämförelseunderlaget ${integer.format(result.current.valid)} giltiga röster i aktuellt val. Det är observationen; prognosen är tolkningsstödet. ${hybridNote(result)}</p>
   `;
 }
 
@@ -439,7 +629,7 @@ function renderCountyOptions() {
   `).join("");
   countySelect.addEventListener("change", () => {
     selectedCounty = countySelect.value;
-    render();
+    renderTimeReplay();
   });
 }
 
@@ -447,7 +637,7 @@ function describeMove(row) {
   if (Math.abs(row.delta) < .35) {
     return `${row.name} ligger ungefär still`;
   }
-  return `${row.name} ${row.delta > 0 ? "går fram" : "tappar"} ${percent.format(Math.abs(row.delta))} procentenheter`;
+  return `${row.name} ${row.delta > 0 ? "går fram" : "tappar"} ${percent.format(Math.abs(row.delta))} procentenheter jämfört med förra valet`;
 }
 
 function countyProgress(counted, uncounted) {
@@ -484,27 +674,25 @@ function renderCounty(counted, uncounted, model) {
       </div>
       <div>
         <strong>${integer.format(progress.localVotes)}</strong>
-        <span>röster inne</span>
+        <span>röster inne i aktuellt val</span>
       </div>
       <p>Som fingervisning: förra valet räknades ${integer.format(progress.previousVotes)} giltiga röster i samma länsunderlag.</p>
       ${progress.waitingRests.length ? `<p><b>${progress.waitingRests.length}</b> kommunrester väntar på att bli kompletta.${largestRest ? ` Störst kvar är ${largestRest.municipality} med ${integer.format(largestRest.valid22)} röster i 2022-underlaget.` : ""}</p>` : `<p>Inga kommunrester väntar i länet i det här läget.</p>`}
     </section>
     ${confidenceBadge(result.confidence)}
     <p>I <strong>${selectedCounty}</strong> ser vi att ${describeMove(positive)}, medan ${describeMove(negative)} i räknade jämförelseområden.</p>
-    <p>Just nu bygger länsbilden på ${integer.format(result.current.valid)} giltiga röster i jämförelseunderlaget.</p>
+    <p>Av räknade röster bygger länsbilden på ${integer.format(result.current.valid)} giltiga röster i jämförelseunderlaget. Länsprognosens osäkerhet är ${uncertaintyLabel(result.uncertainty)}.</p>
     ${result.sourceMix.total ? `<p>För det som återstår använder prognosen jämförelser med liknande kommuner och tidigare röstmönster när länets eget räknade underlag inte räcker.</p>` : ""}
     ${methodExplainer(result.sourceMix)}
   `;
 }
 
-function render() {
-  const target = Number(coverageInput.value);
-  const take = Math.max(1, Math.round(payload.districts.length * target / 100));
-  const counted = payload.districts.slice(0, take);
-  const uncounted = payload.districts.slice(take);
+function renderTimeReplay() {
+  const cutoff = currentCutoff();
+  const { counted, uncounted } = splitByTime(cutoff.ms);
   const model = makeModel(counted);
   const result = forecastRows(counted, uncounted, model);
-  coverageLabel.textContent = `${target}% av jämförelseunderlaget`;
+  coverageLabel.textContent = cutoff.isFinal ? "Slutläge" : formatReplayTime(cutoff.ms);
   countedDistricts.textContent = `${integer.format(counted.length)} / ${integer.format(payload.districts.length)}`;
   countedVotes.textContent = integer.format(result.current.valid);
   renderRows(partyTable, result.rows, result.confidence, { showOpinion });
@@ -516,11 +704,37 @@ function render() {
   renderSignals(counted);
 }
 
+function applyOpinionReference(reference) {
+  if (!reference?.enabled) {
+    opinionToggle.closest(".opinion-toggle")?.classList.add("hidden");
+    opinionNote.classList.add("hidden");
+    showOpinion = false;
+    return;
+  }
+  opinionReference = reference;
+  opinionToggle.closest(".opinion-toggle")?.classList.remove("hidden");
+  const source = [reference.source, reference.date].filter(Boolean).join(", ");
+  opinionNote.innerHTML = `
+    <strong>${reference.label || "Opinionsreferens"}</strong>
+    <p>${source ? `${source}. ` : ""}Extern redaktionell referens. Ingår inte i prognosen.</p>
+  `;
+  renderTimeReplay();
+}
+
+function loadOpinionReference() {
+  fetch("data/opinion-reference.json")
+    .then((response) => response.ok ? response.json() : null)
+    .then(applyOpinionReference)
+    .catch(() => applyOpinionReference(null));
+}
+
 function start(data) {
   payload = data;
-  coverageInput.addEventListener("input", render);
+  setupTimeline();
+  coverageInput.addEventListener("input", renderTimeReplay);
   renderCountyOptions();
-  render();
+  renderTimeReplay();
+  loadOpinionReference();
 }
 
 viewTabs.forEach((button) => {
@@ -533,7 +747,7 @@ viewTabs.forEach((button) => {
 opinionToggle.addEventListener("change", () => {
   showOpinion = opinionToggle.checked;
   opinionNote.classList.toggle("hidden", !showOpinion);
-  render();
+  renderTimeReplay();
 });
 
 if (window.RIKSDAG_REPLAY_DATA) {
