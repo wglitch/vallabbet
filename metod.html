@@ -50,10 +50,99 @@
         </article>
       </section>
 
+      <section class="backtest-section" aria-label="Backtester">
+        <div class="panel-head">
+          <h2>Historiska tester</h2>
+          <p>Råläget jämförs med Vallabbets hybridprognos vid samma tidpunkt. Fel anges som genomsnittligt absolut fel i procentenheter per parti.</p>
+        </div>
+
+        <div class="backtest-tabs" role="tablist" aria-label="Välj historiskt test">
+          <button type="button" role="tab" aria-selected="true" data-backtest-tab="bt-2022">2022 mot 2018</button>
+          <button type="button" role="tab" aria-selected="false" data-backtest-tab="bt-2018">2018 mot 2014</button>
+          <button type="button" role="tab" aria-selected="false" data-backtest-tab="bt-2014">2014 mot 2010</button>
+        </div>
+
+        <article id="bt-2022" class="backtest-panel" data-backtest-panel>
+          <h3>2022 mot 2018</h3>
+          <p>Bygger på Valmyndighetens preliminära riksdagsresultat 2022, jämförelsefil 2018/2022 och TID_RD-tider. Onsdagsrösterna ingår inte i målet.</p>
+          <div class="backtest-summary">
+            <div><span>Modell</span><strong>Distrikt + kommunrester</strong></div>
+            <div><span>Mål</span><strong>Valnattsdistrikt 2022</strong></div>
+          </div>
+          <div class="backtest-table-wrap">
+            <table>
+              <thead><tr><th>Tid</th><th>Räknade röster</th><th>Råläge</th><th>Prognos</th></tr></thead>
+              <tbody>
+                <tr><td>21:00</td><td>20 010</td><td>2,67</td><td>1,19</td></tr>
+                <tr><td>21:15</td><td>102 344</td><td>1,52</td><td>0,52</td></tr>
+                <tr><td>21:30</td><td>391 678</td><td>0,90</td><td>0,31</td></tr>
+                <tr><td>22:30</td><td>1 580 109</td><td>0,31</td><td>0,09</td></tr>
+                <tr><td>23:00</td><td>2 840 743</td><td>0,29</td><td>0,04</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article id="bt-2018" class="backtest-panel hidden" data-backtest-panel>
+          <h3>2018 mot 2014</h3>
+          <p>Bygger på 2018 års inrapporteringstider, 2018 års distriktsresultat, 2014 års distriktsresultat och Valmyndighetens mappning 2014/2018. Målet är slutligt 2018-resultat för distrikt med rapporteringstid.</p>
+          <div class="backtest-summary">
+            <div><span>Täckning</span><strong>100,00%</strong></div>
+            <div><span>Områden</span><strong>4 631 distrikt + 98 kommunrester</strong></div>
+          </div>
+          <div class="backtest-table-wrap">
+            <table>
+              <thead><tr><th>Tid</th><th>Räknade röster</th><th>Råläge</th><th>Prognos</th></tr></thead>
+              <tbody>
+                <tr><td>21:00</td><td>35 344</td><td>2,63</td><td>1,10</td></tr>
+                <tr><td>21:15</td><td>160 918</td><td>1,58</td><td>0,33</td></tr>
+                <tr><td>21:30</td><td>499 743</td><td>1,01</td><td>0,13</td></tr>
+                <tr><td>22:30</td><td>3 579 315</td><td>0,32</td><td>0,08</td></tr>
+                <tr><td>23:00</td><td>4 551 634</td><td>0,31</td><td>0,07</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article id="bt-2014" class="backtest-panel hidden" data-backtest-panel>
+          <h3>2014 mot 2010</h3>
+          <p>Fallback-test utan mappningsfil 2010/2014. Modellen använder exakta distriktskoder och kommunrester. Målet är slutligt 2014-resultat för distrikt med rapporteringstid.</p>
+          <div class="backtest-summary">
+            <div><span>Täckning</span><strong>99,94%</strong></div>
+            <div><span>Områden</span><strong>5 169 distrikt + 40 kommunrester</strong></div>
+          </div>
+          <div class="backtest-table-wrap">
+            <table>
+              <thead><tr><th>Tid</th><th>Räknade röster</th><th>Råläge</th><th>Prognos</th></tr></thead>
+              <tbody>
+                <tr><td>21:00</td><td>91 637</td><td>2,31</td><td>0,74</td></tr>
+                <tr><td>21:15</td><td>369 130</td><td>1,50</td><td>0,28</td></tr>
+                <tr><td>21:30</td><td>1 087 720</td><td>1,01</td><td>0,23</td></tr>
+                <tr><td>22:30</td><td>4 616 980</td><td>0,22</td><td>0,13</td></tr>
+                <tr><td>23:00</td><td>5 212 117</td><td>0,18</td><td>0,12</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="backtest-note">I detta valpar är nationell swing ibland lika bra eller bättre än hybridprognosen. Den lokala viktningen bör därför granskas vidare.</p>
+        </article>
+      </section>
+
       <footer class="source-note source-note-page">
         <strong>Källa: Valmyndigheten.</strong>
         <span>2022-prototypen bygger på Valmyndighetens preliminära riksdagsresultat per valdistrikt och jämförelsefil för 2018 och 2022. Kommungruppsindelningen kommer från SKR.</span>
       </footer>
     </main>
+    <script>
+      document.querySelectorAll("[data-backtest-tab]").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll("[data-backtest-tab]").forEach((tab) => {
+            tab.setAttribute("aria-selected", String(tab === button));
+          });
+          document.querySelectorAll("[data-backtest-panel]").forEach((panel) => {
+            panel.classList.toggle("hidden", panel.id !== button.dataset.backtestTab);
+          });
+        });
+      });
+    </script>
   </body>
 </html>

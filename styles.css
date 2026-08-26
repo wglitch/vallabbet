@@ -832,6 +832,105 @@ select {
   margin-bottom: 0;
 }
 
+.backtest-section {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 20px;
+}
+
+.backtest-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 14px 0;
+}
+
+.backtest-tabs button {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.backtest-tabs button[aria-selected="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: white;
+}
+
+.backtest-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 18px;
+}
+
+.backtest-panel p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.backtest-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  margin: 14px 0;
+}
+
+.backtest-summary div {
+  background: #f5f1e8;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  padding: 12px;
+}
+
+.backtest-summary span {
+  color: var(--muted);
+}
+
+.backtest-summary strong {
+  font-size: 1.1rem;
+}
+
+.backtest-table-wrap {
+  overflow-x: auto;
+}
+
+.backtest-panel table {
+  border-collapse: collapse;
+  min-width: 560px;
+  width: 100%;
+}
+
+.backtest-panel th,
+.backtest-panel td {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.backtest-panel th:first-child,
+.backtest-panel td:first-child {
+  text-align: left;
+}
+
+.backtest-panel th {
+  color: var(--muted);
+  font-size: .82rem;
+  text-transform: uppercase;
+}
+
+.backtest-note {
+  border-top: 1px solid var(--line);
+  margin: 14px 0 0;
+  padding-top: 12px;
+}
+
 .source-note-page {
   margin-top: 0;
   padding-top: 22px;
@@ -1007,6 +1106,7 @@ select {
   .mast-metrics,
   .signal-grid,
   .coalition-presets,
+  .backtest-summary,
   .mandate-blocks,
   .mandate-list {
     grid-template-columns: 1fr;

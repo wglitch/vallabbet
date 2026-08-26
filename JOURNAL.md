@@ -17,6 +17,7 @@ Done:
 - Prepared backtest output for party-level error calibration.
 - Added `historical_preflight.py` and a first 2018-against-2014 preflight/backtest report.
 - Added a 2014-against-2010 fallback backtest using exact district-code matches plus municipality remainders.
+- Added method-page tabs that summarize 2022/2018, 2018/2014 and 2014/2010 backtests.
 
 Learned:
 - The current 2022 prototype can be evaluated against preliminary election-night district totals, excluding the later county-administration count.

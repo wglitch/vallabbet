@@ -8,6 +8,10 @@ The Riksdag view can show an optional opinion reference from
 `data/opinion-reference.json`. It is a shared editorial reference and is not
 used by the forecast.
 
+The method page summarizes the current historical backtests in separate tabs
+so reviewers can compare raw counted results with the prototype forecast
+without reading the generated Markdown reports.
+
 The Riksdag view also includes a first political-constellation builder. It
 sums raw and forecast vote shares for presets or any clicked party combination
 and shows a calibrated uncertainty span for the whole constellation. The
