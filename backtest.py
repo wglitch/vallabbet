@@ -216,6 +216,30 @@ def neighbor_forecast(counted: list[dict], uncounted: list[dict]) -> dict[str, f
     return {party: votes[party] / valid * 100 for party in PARTIES}
 
 
+def neighbor_blend_weight(current_votes: float, uncounted_votes: float) -> float:
+    if not uncounted_votes:
+        return 0
+    if current_votes >= 2_500_000:
+        return .6
+    if current_votes >= 1_500_000:
+        return .35
+    if current_votes >= 900_000:
+        return .15
+    return 0
+
+
+def hybrid_forecast(counted: list[dict], uncounted: list[dict]) -> dict[str, float]:
+    adjusted = adjusted_forecast(counted, uncounted)
+    neighbor = neighbor_forecast(counted, uncounted)
+    counted_now = total(counted, "22")
+    uncounted_base = total(uncounted, "18")
+    weight = neighbor_blend_weight(counted_now["valid"], uncounted_base["valid"])
+    return {
+        party: adjusted[party] * (1 - weight) + neighbor[party] * weight
+        for party in PARTIES
+    }
+
+
 def raw_share(counted: list[dict]) -> dict[str, float]:
     counted_now = total(counted, "22")
     return {party: share(counted_now, party) for party in PARTIES}
@@ -223,6 +247,10 @@ def raw_share(counted: list[dict]) -> dict[str, float]:
 
 def mae(estimate: dict[str, float], target: dict[str, float]) -> float:
     return sum(abs(estimate[party] - target[party]) for party in PARTIES) / len(PARTIES)
+
+
+def absolute_errors(estimate: dict[str, float], target: dict[str, float]) -> dict[str, float]:
+    return {party: abs(estimate[party] - target[party]) for party in PARTIES}
 
 
 @lru_cache(maxsize=1)
@@ -638,8 +666,8 @@ def actual_time_summary(areas: list[dict], physical22: list[dict], target: dict)
         "Uses `TID_RD` from Valmyndigheten's reporting-time workbook. The noted reporting problem window is visible in the data.",
         f"Physical districts before 21:43: {before_gap:,}. During 21:43-22:16: {during_gap:,}. After 22:16: {after_gap:,}.",
         "",
-        "| Time | Reported physical districts | Model areas available | Counted votes | Raw MAE | National MAE | Adjusted MAE | Local-neighbor MAE |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Time | Reported physical districts | Model areas available | Counted votes | Raw MAE | National MAE | Adjusted MAE | Local-neighbor MAE | Hybrid UI MAE |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for checkpoint in TIME_CHECKPOINTS:
         when = pd.Timestamp(checkpoint)
@@ -651,7 +679,26 @@ def actual_time_summary(areas: list[dict], physical22: list[dict], target: dict)
             f"{mae(raw_share(counted), target):.2f} | "
             f"{mae(national_forecast(counted, uncounted), target):.2f} | "
             f"{mae(adjusted_forecast(counted, uncounted), target):.2f} | "
-            f"{mae(neighbor_forecast(counted, uncounted), target):.2f} |"
+            f"{mae(neighbor_forecast(counted, uncounted), target):.2f} | "
+            f"{mae(hybrid_forecast(counted, uncounted), target):.2f} |"
+        )
+    lines.extend([
+        "",
+        "### Party-level absolute errors",
+        "",
+        "Percentage-point absolute errors for the hybrid forecast used by the UI. This is the input needed to calibrate party-specific uncertainty spans.",
+        "",
+        f"| Time | {' | '.join(PARTIES)} |",
+        f"| --- | {' | '.join('---:' for _ in PARTIES)} |",
+    ])
+    for checkpoint in TIME_CHECKPOINTS:
+        when = pd.Timestamp(checkpoint)
+        counted, uncounted = areas_at_time(areas, when)
+        errors = absolute_errors(hybrid_forecast(counted, uncounted), target)
+        lines.append(
+            f"| {when:%H:%M} | "
+            + " | ".join(f"{errors[party]:.2f}" for party in PARTIES)
+            + " |"
         )
     return lines
 

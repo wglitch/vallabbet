@@ -71,10 +71,12 @@ It writes `data/riksdag-2022-replay.json` for server use and
 - The forecast applies the chosen comparison change to each uncounted area's
   previous-election baseline and combines those projected votes with counted
   current-election votes.
-- Uncertainty spans are first-pass empirical markers calibrated from the 2022
-  replay/backtest. They are shown as practical election-night error spans, not
-  as formal statistical confidence intervals. Late votes and the final county
-  count remain outside the val-night forecast.
+- Uncertainty spans are first-pass empirical markers from the 2022
+  replay/backtest. In the current prototype they are driven by counted votes
+  and local-comparison coverage, and are shared across parties at each replay
+  state. They are practical election-night error spans, not formal statistical
+  confidence intervals. Late votes and the final county count remain outside
+  the val-night forecast.
 - The replay order uses Valmyndigheten's 2022 `TID_RD` reporting times for the
   Riksdag count when `val2022-inrapporteringstider.xlsx` is present.
 - The click-through prototype now uses comparable physical districts plus
@@ -117,10 +119,15 @@ polling-station target:
 Remainder areas are counted only when every 2022 physical district included in
 that remainder has appeared in the `TID_RD` reporting order. The report also
 includes clock-time checkpoints around the 21:43-22:16 reporting disruption.
+It now also outputs party-level absolute errors at those clock-time checkpoints
+so party-specific uncertainty can be calibrated in the next method pass.
 
 ## Next data steps
 
 1. Confirm the public 2026 election-night result feed and data cadence.
 2. Add the 2022 to 2026 comparable-district map.
-3. Calibrate confidence markers and mandate sensitivity before presenting a 2026
+3. Backtest 2018 against 2014 when Valmyndigheten can provide the matching
+   preliminary district result, reporting-time/order file, and 2014/2018
+   comparison map.
+4. Calibrate confidence markers and mandate sensitivity before presenting a 2026
    forecast as more than an analytical nowcast.

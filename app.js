@@ -418,6 +418,11 @@ function coalitionTotals(rows, parties) {
   };
 }
 
+function differenceClass(value) {
+  if (Math.abs(value) < .05) return "";
+  return value > 0 ? "rise" : "fall";
+}
+
 function partyLabel(parties) {
   return parties.length ? parties.join(" + ") : "Inga partier valda";
 }
@@ -425,11 +430,12 @@ function partyLabel(parties) {
 function renderCoalitions(rows) {
   coalitionPresets.innerHTML = coalitionOptions.map((option) => {
     const totals = coalitionTotals(rows, option.parties);
+    const difference = totals.forecast - totals.raw;
     return `
       <button type="button" data-parties="${option.parties.join(",")}" title="Använd som egen konstellation">
         <strong>${option.name}</strong>
-        <span>${percent.format(totals.forecast)}% ${uncertaintyLabel(totals.uncertainty)}</span>
-        <small>Av räknade röster ${percent.format(totals.raw)}%. Sena röster återstår.</small>
+        <span>Prognos ${percent.format(totals.forecast)}% ${uncertaintyLabel(totals.uncertainty)}</span>
+        <small>Av räknade röster ${percent.format(totals.raw)}%. Skillnad <b class="${differenceClass(difference)}">${signed(difference)}</b>.</small>
       </button>
     `;
   }).join("");
@@ -458,22 +464,27 @@ function renderCoalitions(rows) {
 
   const chosen = [...selectedCoalition];
   const totals = coalitionTotals(rows, chosen);
+  const difference = totals.forecast - totals.raw;
   coalitionResult.innerHTML = `
     <h3>Vald konstellation</h3>
     <strong>${partyLabel(chosen)}</strong>
     <div>
-      <span>Prognosandel</span>
+      <span>Prognos</span>
       <b>${percent.format(totals.forecast)}%</b>
-    </div>
-    <div>
-      <span>Osäkerhet</span>
-      <b>${uncertaintyLabel(totals.uncertainty)}</b>
     </div>
     <div>
       <span>Av räknade röster</span>
       <b>${percent.format(totals.raw)}%</b>
     </div>
-    <p class="coalition-result-note">Osäkerheten är kalibrerad på hela konstellationen, inte hoplagd parti för parti.</p>
+    <div>
+      <span>Skillnad prognos/räkning</span>
+      <b class="${differenceClass(difference)}">${signed(difference)}</b>
+    </div>
+    <div>
+      <span>Osäkerhet</span>
+      <b>${uncertaintyLabel(totals.uncertainty)}</b>
+    </div>
+    <p class="coalition-result-note">Skillnaden visar hur mycket prognosen avviker från den faktiska räkningen i samma läge. Osäkerheten är kalibrerad på hela konstellationen, inte hoplagd parti för parti.</p>
   `;
 }
 
