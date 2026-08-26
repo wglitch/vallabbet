@@ -133,16 +133,17 @@ python .\historical_preflight.py
 It writes `historical-preflight.md`. The script is intentionally separate from
 the site build and currently runs a first 2018-against-2014 model check using
 Valmyndigheten's 2018 reporting-time file, 2018 district result, 2014 district
-result, and the 2014/2018 mapping zip. The target is final 2018 district
-result for districts with reporting time, so this should be read as a
-historical proxy until preserved val-night snapshots are available.
+result, and the 2014/2018 mapping zip. It also runs a 2014-against-2010
+fallback check using exact district-code matches plus municipality remainders,
+because no 2010/2014 mapping file is loaded yet. The targets are final
+district results for districts with reporting time, so these should be read as
+historical proxies until preserved val-night snapshots are available.
 
 ## Next data steps
 
 1. Confirm the public 2026 election-night result feed and data cadence.
 2. Add the 2022 to 2026 comparable-district map.
-3. Backtest 2018 against 2014 when Valmyndigheten can provide the matching
-   preliminary district result, reporting-time/order file, and 2014/2018
-   comparison map.
+3. Find or reconstruct older comparison mappings so the 2014/2010 fallback can
+   be compared with a proper mapped run.
 4. Calibrate confidence markers and mandate sensitivity before presenting a 2026
    forecast as more than an analytical nowcast.

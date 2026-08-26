@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass
@@ -36,6 +35,7 @@ TIMING_FILES = {
 }
 
 RESULT_FILES = {
+    2010: CACHE / "slutligt_valresultat_valdistrikt_R.skv",
     2014: CACHE / "2014_riksdagsval_per_valdistrikt.skv",
     2018: ROOT / "2018_R_per_valdistrikt.xlsx",
     2022: ROOT / "preliminart-roster-per-distrikt-riksdagsvalet-2022.xlsx",
@@ -97,8 +97,10 @@ def load_result(year: int) -> dict[str, dict]:
     download_if_needed(year)
     if year == 2018:
         return load_2018_result(RESULT_FILES[year])
+    if year == 2010:
+        return load_riksdag_skv_result(RESULT_FILES[year], district_name_column="VALDISTRIKT")
     if year == 2014:
-        return load_2014_result(RESULT_FILES[year])
+        return load_riksdag_skv_result(RESULT_FILES[year], district_name_column="Valdistrikt")
     raise ValueError(f"No result loader configured for {year}")
 
 
@@ -122,7 +124,7 @@ def load_2018_result(path: Path) -> dict[str, dict]:
     return rows
 
 
-def load_2014_result(path: Path) -> dict[str, dict]:
+def load_riksdag_skv_result(path: Path, district_name_column: str) -> dict[str, dict]:
     source = pd.read_csv(path, sep=";", encoding="latin-1", dtype=str).fillna("0")
     rows = {}
     for _, row in source.iterrows():
@@ -135,7 +137,7 @@ def load_2014_result(path: Path) -> dict[str, dict]:
             "municipalityCode": municipality_code(code),
             "county": str(row["RIKSDAGSVALKRETS"]),
             "municipality": str(row["KOMMUN"]),
-            "name": str(row["Valdistrikt"]),
+            "name": str(row[district_name_column]),
             "valid": number(row["Rost Giltiga"]),
             "votes": {
                 "M": number(row.get("M tal", 0)),
@@ -341,6 +343,97 @@ def build_2018_2014_areas() -> tuple[list[dict], list[dict], dict]:
         "model_votes": sum(area["validcurrent"] for area in all_areas),
     }
     return all_areas, [row for row in current.values() if row["id"] in timing], diagnostics
+
+
+def build_direct_code_areas(previous_year: int, current_year: int) -> tuple[list[dict], list[dict], dict]:
+    current = load_result(current_year)
+    previous = load_result(previous_year)
+    timing = load_timing(current_year)
+    municipality_groups = load_municipality_groups()
+
+    comparable = []
+    used_current = set()
+    used_previous_by_municipality = defaultdict(lambda: {"valid": 0, "votes": {party: 0 for party in PARTIES}})
+    for current_code in sorted(set(current) & set(previous) & set(timing)):
+        now = current[current_code]
+        baseline = previous[current_code]
+        area = {
+            "id": current_code,
+            "kind": "valdistrikt",
+            "name": now["name"],
+            "county": now["county"],
+            "countyCode": now["countyCode"],
+            "municipality": now["municipality"],
+            "municipalityCode": now["municipalityCode"],
+            "validprevious": baseline["valid"],
+            "votesprevious": baseline["votes"],
+            "validcurrent": now["valid"],
+            "votescurrent": now["votes"],
+            "reportingTime": timing[current_code],
+        }
+        area.update(municipality_groups.get(area["municipalityCode"], fallback_group()))
+        area["historicProfile"] = historic_profile(area)
+        comparable.append(area)
+        used_current.add(current_code)
+        used = used_previous_by_municipality[area["municipalityCode"]]
+        used["valid"] += baseline["valid"]
+        for party in PARTIES:
+            used["votes"][party] += baseline["votes"][party]
+
+    current_not_used = [row for code, row in current.items() if code not in used_current and code in timing]
+    previous_by_municipality = aggregate_by_municipality(previous.values())
+    current_components = defaultdict(list)
+    for row in current_not_used:
+        current_components[row["municipalityCode"]].append(row)
+
+    remainders = []
+    for code, components in current_components.items():
+        if code not in previous_by_municipality:
+            continue
+        baseline = subtract_results(previous_by_municipality[code], used_previous_by_municipality[code])
+        if baseline["valid"] <= 0 or any(votes < 0 for votes in baseline["votes"].values()):
+            continue
+        now = sum_results(components)
+        if now["valid"] <= 0:
+            continue
+        area = {
+            "id": f"kommunrest-{code}",
+            "kind": "kommunrest",
+            "name": f"{components[0]['municipality']} kommunrest",
+            "county": components[0]["county"],
+            "countyCode": components[0]["countyCode"],
+            "municipality": components[0]["municipality"],
+            "municipalityCode": code,
+            "validprevious": baseline["valid"],
+            "votesprevious": baseline["votes"],
+            "validcurrent": now["valid"],
+            "votescurrent": now["votes"],
+            "componentDistricts": len(components),
+            "reportingTime": max(timing[item["id"]] for item in components),
+        }
+        area.update(municipality_groups.get(code, fallback_group()))
+        area["historicProfile"] = historic_profile(area)
+        remainders.append(area)
+
+    all_areas = [*comparable, *remainders]
+    all_areas.sort(key=lambda item: (item["reportingTime"], item["kind"], item["id"]))
+    for position, area in enumerate(all_areas, start=1):
+        area["completeAt"] = position
+
+    target_rows = [row for row in current.values() if row["id"] in timing]
+    diagnostics = {
+        "current_districts": len(current),
+        "current_with_timing": len(set(current) & set(timing)),
+        "previous_districts": len(previous),
+        "direct_code_matches": len(set(current) & set(previous) & set(timing)),
+        "current_timed_not_direct": len((set(current) & set(timing)) - set(previous)),
+        "comparable_districts": len(comparable),
+        "municipality_remainders": len(remainders),
+        "model_areas": len(all_areas),
+        "target_votes": sum(row["valid"] for row in target_rows),
+        "model_votes": sum(area["validcurrent"] for area in all_areas),
+    }
+    return all_areas, target_rows, diagnostics
 
 
 def fallback_group() -> dict:
@@ -577,49 +670,26 @@ def mapping_available(pair: ElectionPair) -> bool:
     return bool(path and path.exists())
 
 
-def write_report() -> None:
-    areas, target_rows, diagnostics = build_2018_2014_areas()
+def append_backtest(lines: list[str], label: str, areas: list[dict], target_rows: list[dict], diagnostics: dict, note: str) -> None:
     target = target_share(target_rows)
     first_day = election_date_from_areas(areas)
-    lines = [
-        "# Historical Preflight",
-        "",
-        "Purpose: check whether older election pairs can be used for model evaluation before changing the live prototype pipeline.",
-        "",
-        "## Pair Availability",
-        "",
-        "| Pair | Current timing file | Previous result | Current result | Mapping | Status |",
-        "| --- | --- | --- | --- | --- | --- |",
-    ]
-    for pair in PAIRS:
-        timing_path = TIMING_FILES.get(pair.current)
-        timing = "yes" if timing_path and timing_path.exists() else "missing"
-        previous = "yes" if result_available(pair.previous) else "missing"
-        current = "yes" if result_available(pair.current) else "missing"
-        mapping = "yes" if mapping_available(pair) else "missing"
-        status = "ready" if pair == ElectionPair(2014, 2018) else "needs adapter/data"
-        lines.append(f"| {pair.current} vs {pair.previous} | {timing} | {previous} | {current} | {mapping} | {status} |")
-
     lines.extend([
         "",
-        "## 2018 vs 2014 Data Coverage",
+        f"## {label} Data Coverage",
         "",
         "| Metric | Value |",
         "| --- | ---: |",
     ])
     for key, value in diagnostics.items():
-        if key.endswith("_votes"):
-            lines.append(f"| {key.replace('_', ' ')} | {value:,} |")
-        else:
-            lines.append(f"| {key.replace('_', ' ')} | {value:,} |")
+        lines.append(f"| {key.replace('_', ' ')} | {value:,} |")
     coverage = diagnostics["model_votes"] / diagnostics["target_votes"] * 100 if diagnostics["target_votes"] else 0
     lines.append(f"| model vote coverage | {coverage:.2f}% |")
 
     lines.extend([
         "",
-        "## 2018 vs 2014 Clock-Time Backtest",
+        f"## {label} Clock-Time Backtest",
         "",
-        "Target is final 2018 district result for districts with reporting time. This is a historical proxy, not a preserved 2018 val-night snapshot.",
+        note,
         "",
         "| Time | Model areas counted | Counted votes | Raw MAE | National MAE | Adjusted MAE | Local-neighbor MAE | Hybrid UI MAE |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -639,7 +709,7 @@ def write_report() -> None:
 
     lines.extend([
         "",
-        "## 2018 vs 2014 Model-Area Checkpoints",
+        f"## {label} Model-Area Checkpoints",
         "",
         "| Counted model areas | Raw MAE | National MAE | Adjusted MAE | Local-neighbor MAE | Hybrid UI MAE |",
         "| ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -657,7 +727,7 @@ def write_report() -> None:
 
     lines.extend([
         "",
-        "## Party-Level Absolute Errors at 2018 Clock Times",
+        f"## {label} Party-Level Absolute Errors at Clock Times",
         "",
         "| Time | " + " | ".join(PARTIES) + " |",
         "| --- | " + " | ".join("---:" for _ in PARTIES) + " |",
@@ -669,17 +739,65 @@ def write_report() -> None:
         errors = {party: abs(forecast[party] - target[party]) for party in PARTIES}
         lines.append("| " + clock + " | " + " | ".join(f"{errors[party]:.2f}" for party in PARTIES) + " |")
 
+
+def pair_status(pair: ElectionPair) -> str:
+    if pair == ElectionPair(2014, 2018):
+        return "ready with mapping"
+    if pair == ElectionPair(2010, 2014):
+        return "fallback ready"
+    return "needs adapter/data"
+
+
+def write_report() -> None:
+    areas_2018, target_2018, diagnostics_2018 = build_2018_2014_areas()
+    areas_2014, target_2014, diagnostics_2014 = build_direct_code_areas(2010, 2014)
+    lines = [
+        "# Historical Preflight",
+        "",
+        "Purpose: check whether older election pairs can be used for model evaluation before changing the live prototype pipeline.",
+        "",
+        "## Pair Availability",
+        "",
+        "| Pair | Current timing file | Previous result | Current result | Mapping | Status |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for pair in PAIRS:
+        timing_path = TIMING_FILES.get(pair.current)
+        timing = "yes" if timing_path and timing_path.exists() else "missing"
+        previous = "yes" if result_available(pair.previous) else "missing"
+        current = "yes" if result_available(pair.current) else "missing"
+        mapping = "yes" if mapping_available(pair) else "missing"
+        status = pair_status(pair)
+        lines.append(f"| {pair.current} vs {pair.previous} | {timing} | {previous} | {current} | {mapping} | {status} |")
+
+    append_backtest(
+        lines,
+        "2018 vs 2014",
+        areas_2018,
+        target_2018,
+        diagnostics_2018,
+        "Target is final 2018 district result for districts with reporting time. This is a historical proxy, not a preserved 2018 val-night snapshot.",
+    )
+    append_backtest(
+        lines,
+        "2014 vs 2010",
+        areas_2014,
+        target_2014,
+        diagnostics_2014,
+        "Target is final 2014 district result for districts with reporting time. Because no 2010/2014 mapping file is loaded, this fallback uses exact district-code matches plus municipality remainders.",
+    )
+
     lines.extend([
         "",
         "## Next Fixes Before The Full Series",
         "",
-        "1. Add result loaders for 2002, 2006 and 2010.",
+        "1. Add result loaders for 2002 and 2006.",
         "2. Locate or reconstruct district comparison mappings for 2002/2006, 2006/2010 and 2010/2014.",
         "3. Decide whether older tests should target final results, val-night XML snapshots, or both.",
         "4. Replace this pair-specific script with a parameterized historical backtest module once at least two pairs run cleanly.",
     ])
     (ROOT / "historical-preflight.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(json.dumps(diagnostics, ensure_ascii=False, indent=2))
+    print(json.dumps({"2018_vs_2014": diagnostics_2018, "2014_vs_2010": diagnostics_2014}, ensure_ascii=False, indent=2))
     print("Wrote historical-preflight.md")
 
 
