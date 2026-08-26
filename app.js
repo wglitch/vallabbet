@@ -20,6 +20,7 @@ const opinionNote = document.querySelector("#opinion-note");
 const coalitionPresets = document.querySelector("#coalition-presets");
 const coalitionParties = document.querySelector("#coalition-parties");
 const coalitionResult = document.querySelector("#coalition-result");
+const mandateIndicator = document.querySelector("#mandate-indicator");
 const percent = new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const integer = new Intl.NumberFormat("sv-SE");
 const clock = new Intl.DateTimeFormat("sv-SE", { hour: "2-digit", minute: "2-digit" });
@@ -37,6 +38,9 @@ const coalitionOptions = [
   { name: "Tidöpartierna", parties: ["M", "KD", "L", "SD"] },
   { name: "S + V + C + MP", parties: ["S", "V", "C", "MP"] },
 ];
+
+const parliamentSeats = 349;
+const parliamentThreshold = 4;
 
 const neighborMinAreas = 8;
 const neighborMinVotes = 6500;
@@ -423,8 +427,95 @@ function differenceClass(value) {
   return value > 0 ? "rise" : "fall";
 }
 
+function allocateMandates(rows) {
+  const eligible = rows
+    .filter((row) => row.forecast >= parliamentThreshold)
+    .map((row) => ({ ...row }));
+  const eligibleShare = eligible.reduce((sum, row) => sum + row.forecast, 0);
+  if (!eligibleShare) {
+    return { eligible: [], excluded: rows, seatsByParty: new Map(), eligibleShare: 0 };
+  }
+  const allocations = eligible.map((row) => {
+    const quota = row.forecast / eligibleShare * parliamentSeats;
+    return {
+      ...row,
+      quota,
+      seats: Math.floor(quota),
+      remainder: quota - Math.floor(quota),
+    };
+  });
+  let remaining = parliamentSeats - allocations.reduce((sum, row) => sum + row.seats, 0);
+  allocations
+    .sort((a, b) => b.remainder - a.remainder || b.forecast - a.forecast)
+    .slice(0, remaining)
+    .forEach((row) => {
+      row.seats += 1;
+    });
+  allocations.sort((a, b) => b.seats - a.seats || b.forecast - a.forecast);
+  return {
+    eligible: allocations,
+    excluded: rows.filter((row) => row.forecast < parliamentThreshold),
+    seatsByParty: new Map(allocations.map((row) => [row.party, row.seats])),
+    eligibleShare,
+  };
+}
+
+function coalitionSeats(seatsByParty, parties) {
+  return parties.reduce((sum, party) => sum + (seatsByParty.get(party) || 0), 0);
+}
+
+function thresholdWarnings(rows) {
+  return rows
+    .filter((row) => Math.abs(row.forecast - parliamentThreshold) <= .6)
+    .sort((a, b) => Math.abs(a.forecast - parliamentThreshold) - Math.abs(b.forecast - parliamentThreshold));
+}
+
 function partyLabel(parties) {
   return parties.length ? parties.join(" + ") : "Inga partier valda";
+}
+
+function renderMandateIndicator(rows) {
+  const mandates = allocateMandates(rows);
+  const selectedSeats = coalitionSeats(mandates.seatsByParty, [...selectedCoalition]);
+  const presetSeats = coalitionOptions.map((option) => ({
+    ...option,
+    seats: coalitionSeats(mandates.seatsByParty, option.parties),
+  }));
+  const warnings = thresholdWarnings(rows);
+  mandateIndicator.innerHTML = `
+    <div class="panel-head mandate-head">
+      <div>
+        <h3>Mandatindikator</h3>
+        <p>Förenklad fördelning av ${parliamentSeats} mandat mellan partier över ${parliamentThreshold} procent.</p>
+      </div>
+      <strong>${selectedSeats} mandat</strong>
+    </div>
+    <div class="mandate-blocks">
+      ${presetSeats.map((item) => `
+        <div>
+          <span>${item.name}</span>
+          <b>${item.seats}</b>
+        </div>
+      `).join("")}
+      <div>
+        <span>${partyLabel([...selectedCoalition])}</span>
+        <b>${selectedSeats}</b>
+      </div>
+    </div>
+    <div class="mandate-list">
+      ${mandates.eligible.map((row) => `
+        <div>
+          <span><i style="background:${row.color}"></i>${row.party}</span>
+          <b>${row.seats}</b>
+        </div>
+      `).join("")}
+    </div>
+    <p class="mandate-warning">
+      ${warnings.length
+        ? `Spärrnära: ${warnings.map((row) => `${row.party} ${percent.format(row.forecast)}%`).join(", ")}.`
+        : "Inga partier i prognosen ligger inom 0,6 procentenheter från riksdagsspärren."}
+    </p>
+  `;
 }
 
 function renderCoalitions(rows) {
@@ -486,6 +577,7 @@ function renderCoalitions(rows) {
     </div>
     <p class="coalition-result-note">Skillnaden visar hur mycket prognosen avviker från den faktiska räkningen i samma läge. Osäkerheten är kalibrerad på hela konstellationen, inte hoplagd parti för parti.</p>
   `;
+  renderMandateIndicator(rows);
 }
 
 function renderTabs() {

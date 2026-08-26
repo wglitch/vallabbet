@@ -10,9 +10,10 @@ used by the forecast.
 
 The Riksdag view also includes a first political-constellation builder. It
 sums raw and forecast vote shares for presets or any clicked party combination
-and shows a calibrated uncertainty span for the whole constellation. It
-deliberately does not infer mandates, thresholds, or government viability until
-the mandate model has been reviewed.
+and shows a calibrated uncertainty span for the whole constellation. The
+political view includes a simplified mandate indicator that proportionally
+allocates 349 seats between parties above the four-percent threshold. It is not
+a full constituency and adjustment-seat model.
 
 ## Run
 
@@ -71,6 +72,10 @@ It writes `data/riksdag-2022-replay.json` for server use and
 - The forecast applies the chosen comparison change to each uncounted area's
   previous-election baseline and combines those projected votes with counted
   current-election votes.
+- The mandate indicator is a simplified national proportional seat allocation:
+  parties below 4 percent are excluded, the remaining parties are rescaled, and
+  349 seats are distributed by largest remainder. It is intended as a quick
+  parliamentary signal, not as Valmyndigheten's exact mandate calculation.
 - Uncertainty spans are first-pass empirical markers from the 2022
   replay/backtest. In the current prototype they are driven by counted votes
   and local-comparison coverage, and are shared across parties at each replay
