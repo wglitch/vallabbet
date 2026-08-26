@@ -122,6 +122,21 @@ includes clock-time checkpoints around the 21:43-22:16 reporting disruption.
 It now also outputs party-level absolute errors at those clock-time checkpoints
 so party-specific uncertainty can be calibrated in the next method pass.
 
+## Historical preflight
+
+Run:
+
+```powershell
+python .\historical_preflight.py
+```
+
+It writes `historical-preflight.md`. The script is intentionally separate from
+the site build and currently runs a first 2018-against-2014 model check using
+Valmyndigheten's 2018 reporting-time file, 2018 district result, 2014 district
+result, and the 2014/2018 mapping zip. The target is final 2018 district
+result for districts with reporting time, so this should be read as a
+historical proxy until preserved val-night snapshots are available.
+
 ## Next data steps
 
 1. Confirm the public 2026 election-night result feed and data cadence.
