@@ -401,7 +401,7 @@ function renderRows(target, rows, confidence, options = {}) {
         <span>${percent.format(row.raw)}%</span>
         <span class="${row.delta >= 0 ? "rise" : "fall"}">${signed(row.delta)}</span>
         <strong title="${confidence.label}">${percent.format(row.forecast)}%</strong>
-        <span class="uncertainty" title="Kalibrerad mot 2022-replay. Sena röster återstår.">${uncertaintyLabel(row.uncertainty)}</span>
+        <span class="uncertainty" title="Praktiskt felspann jämfört mot historiska backtester. Sena röster återstår.">${uncertaintyLabel(row.uncertainty)}</span>
         ${showOpinionColumn ? `<span class="opinion-value">${opinionValue(row.party)}</span>` : ""}
         <b style="--fill:${row.forecast}%;--party:${row.color}"></b>
       </div>
@@ -575,7 +575,7 @@ function renderCoalitions(rows) {
       <span>Osäkerhet</span>
       <b>${uncertaintyLabel(totals.uncertainty)}</b>
     </div>
-    <p class="coalition-result-note">Skillnaden visar hur mycket prognosen avviker från den faktiska räkningen i samma läge. Osäkerheten är kalibrerad på hela konstellationen, inte hoplagd parti för parti.</p>
+    <p class="coalition-result-note">Skillnaden visar hur mycket prognosen avviker från den faktiska räkningen i samma läge. Osäkerheten visas som en indikator för hela konstellationen, inte hoplagd parti för parti.</p>
   `;
   renderMandateIndicator(rows);
 }

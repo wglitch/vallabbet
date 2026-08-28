@@ -80,10 +80,10 @@ It writes `data/riksdag-2022-replay.json` for server use and
   parties below 4 percent are excluded, the remaining parties are rescaled, and
   349 seats are distributed by largest remainder. It is intended as a quick
   parliamentary signal, not as Valmyndigheten's exact mandate calculation.
-- Uncertainty spans are first-pass empirical markers from the 2022
-  replay/backtest. In the current prototype they are driven by counted votes
-  and local-comparison coverage, and are shared across parties at each replay
-  state. They are practical election-night error spans, not formal statistical
+- Uncertainty spans are practical election-night error markers that have been
+  compared with model errors in historical backtests. In the current prototype
+  they are driven by counted votes and local-comparison coverage, and are
+  shared across parties at each replay state. They are not formal statistical
   confidence intervals. Late votes and the final county count remain outside
   the val-night forecast.
 - The replay order uses Valmyndigheten's 2022 `TID_RD` reporting times for the
