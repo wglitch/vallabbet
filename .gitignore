@@ -5,3 +5,4 @@ __pycache__/
 data/live/snapshots/
 data/live/current-riksdag.json
 data/live/status.json
+garageserver/state/
