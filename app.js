@@ -325,6 +325,10 @@ function forecastRows(counted, uncounted, model) {
   const current = sumDistricts(counted, "valid22", "votes22");
   const baseline = sumDistricts(counted, "valid18", "votes18");
   const uncountedBaseline = sumDistricts(uncounted, "valid18", "votes18");
+  const fullBaseline = { valid: baseline.valid + uncountedBaseline.valid };
+  Object.keys(payload.parties).forEach((party) => {
+    fullBaseline[party] = baseline[party] + uncountedBaseline[party];
+  });
   const forecastVotes = {};
   const neighborVotes = {};
   const sourceMix = { total: 0, stratified: 0, sources: new Set() };
@@ -365,6 +369,7 @@ function forecastRows(counted, uncounted, model) {
     ...meta,
     raw: share(current, party),
     baselineShare: share(baseline, party),
+    baselineSkew: share(baseline, party) - share(fullBaseline, party),
     delta: swing(current, baseline, party),
     adjustedForecast: forecastVotes[party] / forecastScale * 100,
     neighborForecast: neighborVotes[party] / forecastScale * 100,
@@ -401,14 +406,13 @@ function renderRows(target, rows, confidence, options = {}) {
   const showOpinionColumn = options.showOpinion === true;
   target.innerHTML = `
     <div class="party-row labels ${showOpinionColumn ? "with-opinion" : ""}">
-      <span>Parti</span><span>Just nu</span><span>Samma områden förra valet</span><span>Förändring</span><span>Prognos</span><span>Osäkerhet</span>${showOpinionColumn ? "<span>Opinion</span>" : ""}
+      <span>Parti</span><span>Just nu</span><span>Samma områden förra valet</span><span>Prognos</span><span>Osäkerhet</span>${showOpinionColumn ? "<span>Opinion</span>" : ""}
     </div>
     ${rows.map((row) => `
       <div class="party-row ${showOpinionColumn ? "with-opinion" : ""}">
         <span class="party-name"><i style="background:${row.color}"></i>${row.party}</span>
-        <span>${percent.format(row.raw)}%</span>
-        <span>${percent.format(row.baselineShare)}%</span>
-        <span class="${row.delta >= 0 ? "rise" : "fall"}">${signed(row.delta)}</span>
+        <span class="value-with-delta">${percent.format(row.raw)}% <small class="${row.delta >= 0 ? "rise" : "fall"}">${signed(row.delta)}</small></span>
+        <span class="value-with-delta">${percent.format(row.baselineShare)}% <small class="${row.baselineSkew >= 0 ? "rise" : "fall"}" title="Avvikelse mot hela förra valets jämförelseunderlag">${signed(row.baselineSkew)}</small></span>
         <strong class="forecast-cell" title="${confidence.label}">${percent.format(row.forecast)}%</strong>
         <span class="uncertainty" title="Praktiskt felspann jämfört mot historiska backtester. Sena röster återstår.">${uncertaintyLabel(row.uncertainty)}</span>
         ${showOpinionColumn ? `<span class="opinion-value">${opinionValue(row.party)}</span>` : ""}

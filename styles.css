@@ -270,13 +270,13 @@ input[type="range"] {
   border-top: 1px solid var(--line);
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(90px, 1fr) minmax(70px, 82px) minmax(92px, 112px) minmax(78px, 98px) minmax(66px, 78px) minmax(74px, 84px);
+  grid-template-columns: minmax(90px, 1fr) minmax(88px, 104px) minmax(110px, 136px) minmax(66px, 78px) minmax(74px, 84px);
   min-height: 54px;
   position: relative;
 }
 
 .party-row.with-opinion {
-  grid-template-columns: minmax(90px, 1fr) minmax(70px, 82px) minmax(92px, 112px) minmax(78px, 98px) minmax(66px, 78px) minmax(74px, 84px) minmax(70px, 80px);
+  grid-template-columns: minmax(90px, 1fr) minmax(88px, 104px) minmax(110px, 136px) minmax(66px, 78px) minmax(74px, 84px) minmax(70px, 80px);
 }
 
 .party-row.labels {
@@ -371,6 +371,13 @@ input[type="range"] {
 .party-row .forecast-cell {
   color: #53616f;
   font-size: 1.05rem;
+}
+
+.value-with-delta small {
+  display: block;
+  font-size: .78rem;
+  font-weight: 850;
+  line-height: 1.1;
 }
 
 .party-row span:not(.party-name) {
@@ -1128,7 +1135,7 @@ select {
 
   .party-row {
     gap: 7px;
-    grid-template-columns: minmax(86px, 1fr) repeat(5, minmax(54px, 1fr));
+    grid-template-columns: minmax(86px, 1fr) repeat(4, minmax(58px, 1fr));
     font-size: .9rem;
   }
 

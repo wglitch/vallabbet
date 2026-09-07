@@ -6,3 +6,5 @@ data/live/snapshots/
 data/live/current-riksdag.json
 data/live/status.json
 garageserver/state/
+garageserver/config.json
+data/fallback/*.tmp

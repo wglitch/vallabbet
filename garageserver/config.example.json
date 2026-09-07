@@ -13,5 +13,12 @@
   "resultJsonPattern": "rostfordelning_00_RD.json",
   "localZipFile": "",
   "pollSeconds": 30,
-  "saveSnapshots": true
+  "saveSnapshots": true,
+  "fallbackGit": {
+    "enabled": false,
+    "intervalSeconds": 900,
+    "outputDir": "../data/fallback",
+    "branch": "main",
+    "commitMessage": "Update fallback live results"
+  }
 }

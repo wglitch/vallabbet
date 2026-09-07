@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import io
 import json
+import subprocess
 import sys
 import time
 import zipfile
@@ -93,6 +94,84 @@ def save_snapshot(snapshot_dir: Path, payload: dict, prefix: str) -> Path:
     target = snapshot_dir / f"{timestamp}-{prefix}.json"
     write_json_atomic(target, payload)
     return target
+
+
+def relative_to_repo(repo_dir: Path, path: Path) -> str:
+    return str(path.resolve().relative_to(repo_dir.resolve())).replace("\\", "/")
+
+
+def run_git(repo_dir: Path, args: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo_dir,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def maybe_publish_fallback(config: dict, base_dir: Path, payload: dict, status: dict) -> dict | None:
+    fallback = config.get("fallbackGit") or {}
+    if not fallback.get("enabled"):
+        return None
+
+    repo_dir = base_dir.parent
+    state_path = resolve(base_dir, config["stateFile"])
+    state = read_state(state_path)
+    checksum = payload.get("sourceChecksum") or sha256_bytes(
+        json.dumps(payload.get("districts") or payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    )
+    now = int(time.time())
+    interval = int(fallback.get("intervalSeconds", 900))
+    previous_time = int(state.get("lastFallbackAt") or 0)
+    if state.get("lastFallbackChecksum") == checksum and now - previous_time < interval:
+        return {
+            "ok": True,
+            "changed": False,
+            "message": "Fallback GitHub file unchanged and interval has not elapsed.",
+        }
+
+    output_dir = resolve(base_dir, fallback.get("outputDir", "../data/fallback"))
+    current_path = output_dir / "current-riksdag.json"
+    status_path = output_dir / "status.json"
+    fallback_status = {
+        **status,
+        "fallback": True,
+        "fallbackPublishedAt": utc_now(),
+        "message": "Fallback copy for GitHub Pages.",
+    }
+    write_json_atomic(current_path, payload)
+    write_json_atomic(status_path, fallback_status)
+
+    add = run_git(repo_dir, ["add", relative_to_repo(repo_dir, current_path), relative_to_repo(repo_dir, status_path)])
+    if add.returncode:
+        return {"ok": False, "changed": False, "message": add.stderr.strip() or add.stdout.strip()}
+
+    diff = run_git(repo_dir, ["diff", "--cached", "--quiet"])
+    if diff.returncode == 0:
+        state["lastFallbackChecksum"] = checksum
+        state["lastFallbackAt"] = now
+        write_json_atomic(state_path, state)
+        return {"ok": True, "changed": False, "message": "Fallback files already match GitHub copy."}
+
+    commit_message = fallback.get("commitMessage", "Update fallback live results")
+    commit = run_git(repo_dir, ["commit", "-m", commit_message])
+    if commit.returncode:
+        return {"ok": False, "changed": False, "message": commit.stderr.strip() or commit.stdout.strip()}
+
+    push = run_git(repo_dir, ["push", "origin", fallback.get("branch", "main")])
+    if push.returncode:
+        return {"ok": False, "changed": True, "message": push.stderr.strip() or push.stdout.strip()}
+
+    state["lastFallbackChecksum"] = checksum
+    state["lastFallbackAt"] = now
+    write_json_atomic(state_path, state)
+    return {
+        "ok": True,
+        "changed": True,
+        "message": "Fallback files committed and pushed to GitHub.",
+        "commit": commit.stdout.strip().splitlines()[0] if commit.stdout.strip() else "",
+    }
 
 
 def fake_2022_payload(config: dict, base_dir: Path) -> tuple[dict, dict]:
@@ -379,6 +458,9 @@ def run_once(config: dict, base_dir: Path) -> dict:
             status["snapshot"] = str(snapshot.relative_to(base_dir.parent)).replace("\\", "/")
         except ValueError:
             status["snapshot"] = snapshot.name
+    fallback_result = maybe_publish_fallback(config, base_dir, payload, status)
+    if fallback_result:
+        status["fallbackGit"] = fallback_result
     write_status(public_dir, status)
     return status
 
