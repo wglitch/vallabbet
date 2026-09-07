@@ -102,7 +102,7 @@ def relative_to_repo(repo_dir: Path, path: Path) -> str:
 
 def run_git(repo_dir: Path, args: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["git", *args],
+        ["git", "-c", f"safe.directory={repo_dir.as_posix()}", *args],
         cwd=repo_dir,
         text=True,
         capture_output=True,
