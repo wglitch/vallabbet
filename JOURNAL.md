@@ -2,7 +2,7 @@
 
 # Current Next Step
 
-Add result loaders for 2002 and 2006, then locate or reconstruct district comparison mappings for 2002/2006, 2006/2010 and 2010/2014.
+Validate the garageserver importer against real Valmyndigheten sample files once they are available, then connect the frontend live mode.
 
 ---
 
@@ -18,6 +18,7 @@ Done:
 - Added `historical_preflight.py` and a first 2018-against-2014 preflight/backtest report.
 - Added a 2014-against-2010 fallback backtest using exact district-code matches plus municipality remainders.
 - Added method-page tabs that summarize 2022/2018, 2018/2014 and 2014/2010 backtests.
+- Added garageserver importer package with fake-2022, local-zip and Valmyndigheten URL modes.
 
 Learned:
 - The current 2022 prototype can be evaluated against preliminary election-night district totals, excluding the later county-administration count.

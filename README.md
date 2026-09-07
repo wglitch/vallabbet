@@ -148,6 +148,23 @@ because no 2010/2014 mapping file is loaded yet. The targets are final
 district results for districts with reporting time, so these should be read as
 historical proxies until preserved val-night snapshots are available.
 
+## Garageserver live package
+
+The `garageserver/` folder contains an offline/live importer package for the election-night setup. It can run in `fake-2022` mode without access to Valmyndigheten simulation files and writes static live files to `data/live/`:
+
+- `current-riksdag.json`
+- `status.json`
+- optional snapshots
+
+Run from the package folder with:
+
+```powershell
+copy config.example.json config.json
+python .\fetch_valmyndigheten.py --once --config .\config.json
+```
+
+For the real election-night setup, serve Vallabbet from garageserver or an internal web server and let the importer update `data/live/current-riksdag.json` directly. GitHub Pages should remain code/demo hosting, not the live data path.
+
 ## Next data steps
 
 1. Confirm the public 2026 election-night result feed and data cadence.

@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .tmp-preflight/
 .cache/
+data/live/snapshots/
+data/live/current-riksdag.json
+data/live/status.json

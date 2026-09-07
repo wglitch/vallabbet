@@ -1,0 +1,16 @@
+{
+  "source": "fake-2022",
+  "publicDir": "../data/live",
+  "snapshotDir": "../data/live/snapshots",
+  "stateFile": "state/state.json",
+  "fakeReplayFile": "../data/riksdag-2022-replay.json",
+  "fakeClock": "2022-09-11T21:30:00",
+  "valmyndighetenBaseUrl": "https://resultat.val.se/resultatfiler/val2026",
+  "indexFile": "index.md5",
+  "electionCode": "RD",
+  "resultZipPattern": "preliminar_00_RD.zip",
+  "resultJsonPattern": "rostfordelning_00_RD.json",
+  "localZipFile": "",
+  "pollSeconds": 30,
+  "saveSnapshots": true
+}
