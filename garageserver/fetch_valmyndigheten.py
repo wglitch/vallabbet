@@ -325,6 +325,39 @@ def normalize_area(raw_area: dict, metadata: dict, position: int) -> dict | None
     }
 
 
+def normalize_current_area(raw_area: dict, metadata: dict, position: int) -> dict | None:
+    votes_section = (raw_area.get("rostfordelning") or {}).get("rosterPaverkaMandat") or {}
+    valid_current = int(votes_section.get("antalRoster") or 0)
+    if valid_current <= 0:
+        return None
+
+    municipality_code = str(raw_area.get("kommunkod") or "").zfill(4)
+    district_code = str(raw_area.get("valdistriktskod") or "")
+    municipality_meta = metadata["by_municipality"].get(
+        municipality_code,
+        {
+            "municipality": municipality_code,
+            "county": COUNTY_NAMES.get(municipality_code[:2], municipality_code[:2]),
+            "constituency": COUNTY_NAMES.get(municipality_code[:2], municipality_code[:2]),
+        },
+    )
+    return {
+        "id": district_code or f"{municipality_code}-{position}",
+        "kind": raw_area.get("valdistriktstyp") or "valdistrikt",
+        "name": raw_area.get("namn") or district_code,
+        "municipality": municipality_meta["municipality"],
+        "municipalityCode": municipality_code,
+        "countyCode": str(raw_area.get("lankod") or municipality_code[:2]).zfill(2),
+        "county": municipality_meta["county"],
+        "constituency": raw_area.get("kommunvalkretsNamn") or municipality_meta["constituency"],
+        "valid22": valid_current,
+        "votes22": party_votes(votes_section, "antalRoster"),
+        "reportingTimeRD": raw_area.get("rapporteringsTid"),
+        "physicalReplayOrder": position,
+        "replayOrder": position,
+    }
+
+
 def normalize_valmyndigheten_json(
     raw: dict,
     source_name: str,
@@ -338,7 +371,13 @@ def normalize_valmyndigheten_json(
         for position, raw_area in enumerate(raw.get("valdistrikt") or [])
         if (area := normalize_area(raw_area, metadata, position)) is not None
     ]
+    current_areas = [
+        area
+        for position, raw_area in enumerate(raw.get("valdistrikt") or [])
+        if (area := normalize_current_area(raw_area, metadata, position)) is not None
+    ]
     reported_areas = [area for area in normalized_areas if area.get("reportingTimeRD")]
+    reported_current_areas = [area for area in current_areas if area.get("reportingTimeRD")]
     payload = {
         "schema": "vallabbet-live-current-v1",
         "mode": "valmyndigheten-live",
@@ -351,10 +390,11 @@ def normalize_valmyndigheten_json(
         "adapterStatus": "normalized-valmyndigheten-2026",
         "parties": PARTY_META,
         "districts": normalized_areas,
+        "currentDistricts": current_areas,
         "counts": {
             "reportedAreas": len(reported_areas),
             "modelAreas": len(normalized_areas),
-            "validReportedVotes": sum(area["valid22"] for area in reported_areas),
+            "validReportedVotes": sum(area["valid22"] for area in reported_current_areas),
             "rawDistricts": len(raw.get("valdistrikt") or []),
             "rawReportedDistricts": raw.get("antalValdistriktRaknade"),
             "rawTotalDistricts": raw.get("antalValdistriktSomSkaRaknas"),

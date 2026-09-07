@@ -121,6 +121,15 @@ function sumDistricts(districts, validKey, voteKey) {
   return total;
 }
 
+function splitAreasByTime(areas, cutoffMs) {
+  const take = areas.findIndex((area) => !Number.isFinite(area.reportMs) || area.reportMs > cutoffMs);
+  const end = take === -1 ? areas.length : Math.max(1, take);
+  return {
+    counted: areas.slice(0, end),
+    uncounted: areas.slice(end),
+  };
+}
+
 function share(total, party) {
   return total.valid ? total[party] / total.valid * 100 : 0;
 }
@@ -159,6 +168,12 @@ function setupTimeline() {
   payload.districts.forEach((district) => {
     district.reportMs = reportMs(district);
   });
+  if (payload.currentDistricts) {
+    payload.currentDistricts.forEach((district) => {
+      district.reportMs = reportMs(district);
+    });
+    payload.currentDistricts.sort((a, b) => (Number.isFinite(a.reportMs) ? a.reportMs : Infinity) - (Number.isFinite(b.reportMs) ? b.reportMs : Infinity));
+  }
   payload.districts.sort((a, b) => (Number.isFinite(a.reportMs) ? a.reportMs : Infinity) - (Number.isFinite(b.reportMs) ? b.reportMs : Infinity));
 
   const validTimes = payload.districts
@@ -206,12 +221,7 @@ function currentCutoff() {
 }
 
 function splitByTime(cutoffMs) {
-  const take = payload.districts.findIndex((district) => !Number.isFinite(district.reportMs) || district.reportMs > cutoffMs);
-  const end = take === -1 ? payload.districts.length : Math.max(1, take);
-  return {
-    counted: payload.districts.slice(0, end),
-    uncounted: payload.districts.slice(end),
-  };
+  return splitAreasByTime(payload.districts, cutoffMs);
 }
 
 function groupBy(districts, key) {
@@ -321,8 +331,9 @@ function confidenceFrom(countedStat, sourceMix) {
   };
 }
 
-function forecastRows(counted, uncounted, model) {
+function forecastRows(counted, uncounted, model, officialCounted = counted) {
   const current = sumDistricts(counted, "valid22", "votes22");
+  const officialCurrent = sumDistricts(officialCounted, "valid22", "votes22");
   const baseline = sumDistricts(counted, "valid18", "votes18");
   const uncountedBaseline = sumDistricts(uncounted, "valid18", "votes18");
   const fullBaseline = { valid: baseline.valid + uncountedBaseline.valid };
@@ -367,9 +378,10 @@ function forecastRows(counted, uncounted, model) {
   const rows = Object.entries(payload.parties).map(([party, meta]) => ({
     party,
     ...meta,
-    raw: share(current, party),
+    raw: share(officialCurrent, party),
     baselineShare: share(baseline, party),
-    baselineSkew: share(baseline, party) - share(fullBaseline, party),
+    previousFinalShare: share(fullBaseline, party),
+    rawDelta: share(officialCurrent, party) - share(fullBaseline, party),
     delta: swing(current, baseline, party),
     adjustedForecast: forecastVotes[party] / forecastScale * 100,
     neighborForecast: neighborVotes[party] / forecastScale * 100,
@@ -383,6 +395,7 @@ function forecastRows(counted, uncounted, model) {
   return {
     rows,
     current,
+    officialCurrent,
     baseline,
     uncountedBaseline,
     confidence: confidenceFrom({ current }, sourceMix),
@@ -411,8 +424,8 @@ function renderRows(target, rows, confidence, options = {}) {
     ${rows.map((row) => `
       <div class="party-row ${showOpinionColumn ? "with-opinion" : ""}">
         <span class="party-name"><i style="background:${row.color}"></i>${row.party}</span>
-        <span class="value-with-delta">${percent.format(row.raw)}% <small class="${row.delta >= 0 ? "rise" : "fall"}">${signed(row.delta)}</small></span>
-        <span class="value-with-delta">${percent.format(row.baselineShare)}% <small class="${row.baselineSkew >= 0 ? "rise" : "fall"}" title="Avvikelse mot hela förra valets jämförelseunderlag">${signed(row.baselineSkew)}</small></span>
+        <span class="value-with-delta">${percent.format(row.raw)}% <small class="${row.rawDelta >= 0 ? "rise" : "fall"}" title="Jämfört med hela förra valets jämförelseunderlag">${signed(row.rawDelta)}</small></span>
+        <span class="value-with-delta">${percent.format(row.baselineShare)}% <small class="${row.delta >= 0 ? "rise" : "fall"}" title="Aktuellt val jämfört med samma områden förra valet">${signed(row.delta)}</small></span>
         <strong class="forecast-cell" title="${confidence.label}">${percent.format(row.forecast)}%</strong>
         <span class="uncertainty" title="Praktiskt felspann jämfört mot historiska backtester. Sena röster återstår.">${uncertaintyLabel(row.uncertainty)}</span>
         ${showOpinionColumn ? `<span class="opinion-value">${opinionValue(row.party)}</span>` : ""}
@@ -806,11 +819,14 @@ function renderCounty(counted, uncounted, model) {
 function renderTimeReplay() {
   const cutoff = currentCutoff();
   const { counted, uncounted } = splitByTime(cutoff.ms);
+  const officialCounted = payload.currentDistricts
+    ? splitAreasByTime(payload.currentDistricts, cutoff.ms).counted
+    : counted;
   const model = makeModel(counted);
-  const result = forecastRows(counted, uncounted, model);
+  const result = forecastRows(counted, uncounted, model, officialCounted);
   coverageLabel.textContent = cutoff.isFinal ? "Slutläge" : formatReplayTime(cutoff.ms);
   countedDistricts.textContent = `${integer.format(counted.length)} / ${integer.format(payload.districts.length)}`;
-  countedVotes.textContent = integer.format(result.current.valid);
+  countedVotes.textContent = integer.format(result.officialCurrent.valid);
   liveUpdated.textContent = payload.sourceUpdatedAt
     ? formatReplayTime(Date.parse(payload.sourceUpdatedAt))
     : (payload.mode === "valmyndigheten-live" ? "Live" : "Replay");
