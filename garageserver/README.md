@@ -28,7 +28,18 @@ Default `config.example.json` uses `source: fake-2022`. That means no Valmyndigh
 - `local-zip`: read a local Valmyndigheten-style zip file from `localZipFile`.
 - `valmyndigheten-url`: poll `index.md5`, download a changed zip, unpack the matching JSON, and write normalized output.
 
-The Valmyndigheten adapter is intentionally defensive because the 2026 simulation files are not available yet. It stores the raw extracted JSON under `raw` in the normalized output, and fills basic status fields where they can be inferred. Once real sample files are available, this adapter should be tightened to the exact schema.
+The Valmyndigheten adapter has been tested against the 2026 rehearsal feed. To test that feed, set:
+
+```json
+{
+  "source": "valmyndigheten-url",
+  "valmyndighetenBaseUrl": "https://resultat.val.se/resultatfiler/genrep2026",
+  "resultZipPattern": "preliminar_00_RD.zip",
+  "resultJsonPattern": "rostfordelning_00_RD.json"
+}
+```
+
+The frontend can read the generated file with `?live=1`, or with a full tunnel URL such as `?live=https://example/data/live/current-riksdag.json`.
 
 ## Suggested garageserver layout
 

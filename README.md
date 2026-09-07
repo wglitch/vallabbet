@@ -163,12 +163,12 @@ copy config.example.json config.json
 python .\fetch_valmyndigheten.py --once --config .\config.json
 ```
 
-For the real election-night setup, serve Vallabbet from garageserver or an internal web server and let the importer update `data/live/current-riksdag.json` directly. GitHub Pages should remain code/demo hosting, not the live data path.
+For the real election-night setup, serve Vallabbet from garageserver or an internal web server and let the importer update `data/live/current-riksdag.json` directly. GitHub Pages should remain code/demo hosting, not the live data path. The frontend stays in replay mode by default; add `?live=1` to read `data/live/current-riksdag.json`, or pass a full live JSON URL in the `live` query parameter when using a Cloudflare Tunnel.
 
 ## Next data steps
 
-1. Confirm the public 2026 election-night result feed and data cadence.
-2. Add the 2022 to 2026 comparable-district map.
+1. Run a full rehearsal through the Cloudflare Tunnel path and verify browser cache/CORS behavior.
+2. Validate that the election-night feed keeps the same schema as `genrep2026`.
 3. Find or reconstruct older comparison mappings so the 2014/2010 fallback can
    be compared with a proper mapped run.
 4. Calibrate confidence markers and mandate sensitivity before presenting a 2026

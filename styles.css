@@ -270,13 +270,13 @@ input[type="range"] {
   border-top: 1px solid var(--line);
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(118px, 1fr) minmax(82px, 96px) minmax(94px, 120px) 74px 82px;
+  grid-template-columns: minmax(90px, 1fr) minmax(70px, 82px) minmax(92px, 112px) minmax(78px, 98px) minmax(66px, 78px) minmax(74px, 84px);
   min-height: 54px;
   position: relative;
 }
 
 .party-row.with-opinion {
-  grid-template-columns: minmax(118px, 1fr) minmax(82px, 96px) minmax(94px, 120px) 74px 82px minmax(76px, 86px);
+  grid-template-columns: minmax(90px, 1fr) minmax(70px, 82px) minmax(92px, 112px) minmax(78px, 98px) minmax(66px, 78px) minmax(74px, 84px) minmax(70px, 80px);
 }
 
 .party-row.labels {
@@ -366,6 +366,11 @@ input[type="range"] {
 .party-row strong {
   font-size: 1.2rem;
   text-align: right;
+}
+
+.party-row .forecast-cell {
+  color: #53616f;
+  font-size: 1.05rem;
 }
 
 .party-row span:not(.party-name) {
@@ -1123,7 +1128,7 @@ select {
 
   .party-row {
     gap: 7px;
-    grid-template-columns: minmax(92px, 1fr) 52px 61px 66px 68px;
+    grid-template-columns: minmax(86px, 1fr) repeat(5, minmax(54px, 1fr));
     font-size: .9rem;
   }
 

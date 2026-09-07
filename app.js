@@ -4,6 +4,7 @@ const coverageTitle = document.querySelector('label[for="coverage"] span');
 const timeScale = document.querySelector("#time-scale");
 const countedDistricts = document.querySelector("#counted-districts");
 const countedVotes = document.querySelector("#counted-votes");
+const liveUpdated = document.querySelector("#live-updated");
 const partyTable = document.querySelector("#party-table");
 const partyTabs = document.querySelector("#party-tabs");
 const focusPanel = document.querySelector("#focus-panel");
@@ -21,6 +22,7 @@ const coalitionPresets = document.querySelector("#coalition-presets");
 const coalitionParties = document.querySelector("#coalition-parties");
 const coalitionResult = document.querySelector("#coalition-result");
 const mandateIndicator = document.querySelector("#mandate-indicator");
+const modeNoteText = document.querySelector("#mode-note-text");
 const percent = new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const integer = new Intl.NumberFormat("sv-SE");
 const clock = new Intl.DateTimeFormat("sv-SE", { hour: "2-digit", minute: "2-digit" });
@@ -153,19 +155,22 @@ function formatReplayTime(ms) {
 }
 
 function setupTimeline() {
-  coverageTitle.textContent = "Tid i replayen";
+  coverageTitle.textContent = payload.mode === "valmyndigheten-live" ? "Rapporteringstid" : "Tid i replayen";
   payload.districts.forEach((district) => {
     district.reportMs = reportMs(district);
   });
-  payload.districts.sort((a, b) => a.reportMs - b.reportMs);
+  payload.districts.sort((a, b) => (Number.isFinite(a.reportMs) ? a.reportMs : Infinity) - (Number.isFinite(b.reportMs) ? b.reportMs : Infinity));
 
   const validTimes = payload.districts
     .map((district) => district.reportMs)
     .filter(Number.isFinite);
   const minMs = Math.min(...validTimes);
   const maxMs = Math.max(...validTimes);
-  const preferredNightEnd = Date.parse("2022-09-12T01:00:00");
-  const nightEndMs = Math.min(maxMs, Math.max(minMs, preferredNightEnd));
+  const firstDate = new Date(minMs);
+  const preferredNightEnd = new Date(firstDate);
+  preferredNightEnd.setDate(preferredNightEnd.getDate() + 1);
+  preferredNightEnd.setHours(1, 0, 0, 0);
+  const nightEndMs = Math.min(maxMs, Math.max(minMs, preferredNightEnd.getTime()));
   const nightMinutes = minutesBetween(minMs, nightEndMs);
   const finalStep = nightMinutes + 12;
 
@@ -173,14 +178,16 @@ function setupTimeline() {
   coverageInput.min = "0";
   coverageInput.max = String(finalStep);
   coverageInput.step = "1";
-  coverageInput.value = String(Math.min(finalStep, minutesBetween(minMs, Date.parse("2022-09-11T21:43:00"))));
+  coverageInput.value = payload.mode === "valmyndigheten-live"
+    ? String(finalStep)
+    : String(Math.min(finalStep, minutesBetween(minMs, Date.parse("2022-09-11T21:43:00"))));
 
   const marks = [
     { label: clock.format(new Date(minMs)), step: 0 },
-    { label: "21", step: minutesBetween(minMs, Date.parse("2022-09-11T21:00:00")) },
-    { label: "22", step: minutesBetween(minMs, Date.parse("2022-09-11T22:00:00")) },
-    { label: "23", step: minutesBetween(minMs, Date.parse("2022-09-11T23:00:00")) },
-    { label: "00", step: minutesBetween(minMs, Date.parse("2022-09-12T00:00:00")) },
+    { label: "21", step: minutesBetween(minMs, new Date(firstDate).setHours(21, 0, 0, 0)) },
+    { label: "22", step: minutesBetween(minMs, new Date(firstDate).setHours(22, 0, 0, 0)) },
+    { label: "23", step: minutesBetween(minMs, new Date(firstDate).setHours(23, 0, 0, 0)) },
+    { label: "00", step: minutesBetween(minMs, new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate() + 1, 0, 0, 0).getTime()) },
     { label: "01", step: nightMinutes },
     { label: "slut", step: finalStep },
   ].filter((mark) => mark.step >= 0 && mark.step <= finalStep);
@@ -199,7 +206,7 @@ function currentCutoff() {
 }
 
 function splitByTime(cutoffMs) {
-  const take = payload.districts.findIndex((district) => district.reportMs > cutoffMs);
+  const take = payload.districts.findIndex((district) => !Number.isFinite(district.reportMs) || district.reportMs > cutoffMs);
   const end = take === -1 ? payload.districts.length : Math.max(1, take);
   return {
     counted: payload.districts.slice(0, end),
@@ -357,6 +364,7 @@ function forecastRows(counted, uncounted, model) {
     party,
     ...meta,
     raw: share(current, party),
+    baselineShare: share(baseline, party),
     delta: swing(current, baseline, party),
     adjustedForecast: forecastVotes[party] / forecastScale * 100,
     neighborForecast: neighborVotes[party] / forecastScale * 100,
@@ -393,14 +401,15 @@ function renderRows(target, rows, confidence, options = {}) {
   const showOpinionColumn = options.showOpinion === true;
   target.innerHTML = `
     <div class="party-row labels ${showOpinionColumn ? "with-opinion" : ""}">
-      <span>Parti</span><span>Av räknade röster</span><span>Jämfört med förra valet</span><span>Prognos</span><span>Osäkerhet</span>${showOpinionColumn ? "<span>Opinion</span>" : ""}
+      <span>Parti</span><span>Just nu</span><span>Samma områden förra valet</span><span>Förändring</span><span>Prognos</span><span>Osäkerhet</span>${showOpinionColumn ? "<span>Opinion</span>" : ""}
     </div>
     ${rows.map((row) => `
       <div class="party-row ${showOpinionColumn ? "with-opinion" : ""}">
         <span class="party-name"><i style="background:${row.color}"></i>${row.party}</span>
         <span>${percent.format(row.raw)}%</span>
+        <span>${percent.format(row.baselineShare)}%</span>
         <span class="${row.delta >= 0 ? "rise" : "fall"}">${signed(row.delta)}</span>
-        <strong title="${confidence.label}">${percent.format(row.forecast)}%</strong>
+        <strong class="forecast-cell" title="${confidence.label}">${percent.format(row.forecast)}%</strong>
         <span class="uncertainty" title="Praktiskt felspann jämfört mot historiska backtester. Sena röster återstår.">${uncertaintyLabel(row.uncertainty)}</span>
         ${showOpinionColumn ? `<span class="opinion-value">${opinionValue(row.party)}</span>` : ""}
         <b style="--fill:${row.forecast}%;--party:${row.color}"></b>
@@ -798,6 +807,9 @@ function renderTimeReplay() {
   coverageLabel.textContent = cutoff.isFinal ? "Slutläge" : formatReplayTime(cutoff.ms);
   countedDistricts.textContent = `${integer.format(counted.length)} / ${integer.format(payload.districts.length)}`;
   countedVotes.textContent = integer.format(result.current.valid);
+  liveUpdated.textContent = payload.sourceUpdatedAt
+    ? formatReplayTime(Date.parse(payload.sourceUpdatedAt))
+    : (payload.mode === "valmyndigheten-live" ? "Live" : "Replay");
   renderRows(partyTable, result.rows, result.confidence, { showOpinion });
   renderCoalitions(result.rows);
   renderTabs();
@@ -833,6 +845,10 @@ function loadOpinionReference() {
 
 function start(data) {
   payload = data;
+  if (payload.mode === "valmyndigheten-live") {
+    document.querySelector("#mode-pill").textContent = "Live 2026";
+    modeNoteText.textContent = "Live-läget läser Valmyndighetens preliminära riksdagsfil via Vallabbets importer. Tabellen visar rapporterade områden jämfört med samma områden förra valet och prognos för återstående jämförbart underlag.";
+  }
   setupTimeline();
   coverageInput.addEventListener("input", renderTimeReplay);
   renderCountyOptions();
@@ -853,7 +869,22 @@ opinionToggle.addEventListener("change", () => {
   renderTimeReplay();
 });
 
-if (window.RIKSDAG_REPLAY_DATA) {
+function liveDataUrl() {
+  const value = new URLSearchParams(location.search).get("live");
+  if (!value) return null;
+  if (value === "1" || value === "true") return "data/live/current-riksdag.json";
+  return value;
+}
+
+const liveUrl = liveDataUrl();
+if (liveUrl) {
+  fetch(liveUrl, { cache: "no-store" })
+    .then((response) => response.json())
+    .then(start)
+    .catch(() => {
+      document.body.innerHTML = "<p class='load-error'>Kunde inte läsa live-underlaget.</p>";
+    });
+} else if (window.RIKSDAG_REPLAY_DATA) {
   start(window.RIKSDAG_REPLAY_DATA);
 } else {
   fetch("data/riksdag-2022-replay.json")

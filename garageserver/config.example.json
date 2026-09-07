@@ -4,6 +4,7 @@
   "snapshotDir": "../data/live/snapshots",
   "stateFile": "state/state.json",
   "fakeReplayFile": "../data/riksdag-2022-replay.json",
+  "baselineReplayFile": "../data/riksdag-2022-replay.json",
   "fakeClock": "2022-09-11T21:30:00",
   "valmyndighetenBaseUrl": "https://resultat.val.se/resultatfiler/val2026",
   "indexFile": "index.md5",
