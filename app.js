@@ -863,11 +863,17 @@ function loadOpinionReference() {
     .catch(() => applyOpinionReference(null));
 }
 
-function start(data) {
+function start(data, loadMode = "replay") {
   payload = data;
-  if (payload.mode === "valmyndigheten-live") {
+  if (loadMode === "fallback") {
+    document.querySelector("#mode-pill").textContent = "Reservfil";
+    modeNoteText.textContent = "Liveflödet kunde inte läsas. Sidan visar senaste reservfil från GitHub, om den har hunnit publiceras.";
+  } else if (payload.mode === "valmyndigheten-live") {
     document.querySelector("#mode-pill").textContent = "Live 2026";
     modeNoteText.textContent = "Live-läget läser Valmyndighetens preliminära riksdagsfil via Vallabbets importer. Tabellen visar rapporterade områden jämfört med samma områden förra valet och prognos för återstående jämförbart underlag.";
+  } else if (loadMode === "demo-after-live-error") {
+    document.querySelector("#mode-pill").textContent = "Demoläge";
+    modeNoteText.textContent = "Liveflödet och reservfilen kunde inte läsas. Sidan visar replay av riksdagsvalet 2022 så att verktyget fortfarande går att öppna.";
   }
   setupTimeline();
   coverageInput.addEventListener("input", renderTimeReplay);
@@ -896,21 +902,48 @@ function liveDataUrl() {
   return value;
 }
 
-const liveUrl = liveDataUrl();
-if (liveUrl) {
-  fetch(liveUrl, { cache: "no-store" })
-    .then((response) => response.json())
-    .then(start)
-    .catch(() => {
-      document.body.innerHTML = "<p class='load-error'>Kunde inte läsa live-underlaget.</p>";
-    });
-} else if (window.RIKSDAG_REPLAY_DATA) {
-  start(window.RIKSDAG_REPLAY_DATA);
-} else {
-  fetch("data/riksdag-2022-replay.json")
-    .then((response) => response.json())
-    .then(start)
+function fallbackDataUrl() {
+  const value = new URLSearchParams(location.search).get("fallback");
+  if (!value || value === "1" || value === "true") return "data/fallback/current-riksdag.json";
+  return value;
+}
+
+function fetchJson(url) {
+  return fetch(url, { cache: "no-store" }).then((response) => {
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return response.json();
+  });
+}
+
+function startReplay(loadMode = "replay") {
+  if (window.RIKSDAG_REPLAY_DATA) {
+    start(window.RIKSDAG_REPLAY_DATA, loadMode);
+    return;
+  }
+  fetchJson("data/riksdag-2022-replay.json")
+    .then((data) => start(data, loadMode))
     .catch(() => {
       document.body.innerHTML = "<p class='load-error'>Kunde inte läsa replay-underlaget.</p>";
     });
+}
+
+const liveUrl = liveDataUrl();
+if (liveUrl) {
+  fetchJson(liveUrl)
+    .then((data) => start(data, "live"))
+    .catch(() => fetchJson(fallbackDataUrl())
+      .then((data) => start(data, "fallback"))
+      .catch(() => startReplay("demo-after-live-error")))
+} else if (new URLSearchParams(location.search).get("fallback") === "1") {
+  fetchJson(fallbackDataUrl())
+    .then((data) => start(data, "fallback"))
+    .catch(() => {
+      startReplay("demo-after-live-error");
+    });
+} else if (window.RIKSDAG_REPLAY_DATA) {
+  startReplay();
+} else {
+  startReplay();
 }

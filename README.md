@@ -165,6 +165,12 @@ python .\fetch_valmyndigheten.py --once --config .\config.json
 
 For the real election-night setup, serve Vallabbet from garageserver or an internal web server and let the importer update `data/live/current-riksdag.json` directly. GitHub Pages should remain code/demo hosting, not the live data path. The frontend stays in replay mode by default; add `?live=1` to read `data/live/current-riksdag.json`, or pass a full live JSON URL in the `live` query parameter when using a Cloudflare Tunnel.
 
+Live loading falls back in this order:
+
+1. `live=` URL or local `data/live/current-riksdag.json`.
+2. `data/fallback/current-riksdag.json`, which the importer can commit and push to GitHub every 15 minutes when changed.
+3. The checked-in 2022 replay demo, clearly marked as demo mode.
+
 ## Next data steps
 
 1. Run a full rehearsal through the Cloudflare Tunnel path and verify browser cache/CORS behavior.
