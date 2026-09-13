@@ -9,6 +9,7 @@ The importer writes static JSON files that a web server can serve immediately:
 - `../data/live/current-riksdag.json`
 - `../data/live/status.json`
 - `../data/live/snapshots/*.json` when snapshots are enabled
+- `../data/live/snapshots/manifest.json` with the saved-file timeline
 
 The package can be copied to garageserver later, or run from a normal clone of the repository.
 
@@ -55,6 +56,7 @@ vallabbet/
       current-riksdag.json
       status.json
       snapshots/
+        manifest.json
   garageserver/
     config.json
     fetch_valmyndigheten.py

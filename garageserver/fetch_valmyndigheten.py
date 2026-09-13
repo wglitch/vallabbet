@@ -96,6 +96,33 @@ def save_snapshot(snapshot_dir: Path, payload: dict, prefix: str) -> Path:
     return target
 
 
+def update_snapshot_manifest(snapshot_dir: Path, snapshot: Path, payload: dict, status: dict) -> Path:
+    manifest_path = snapshot_dir / "manifest.json"
+    manifest = read_state(manifest_path)
+    entries = manifest.get("entries") if isinstance(manifest.get("entries"), list) else []
+    counts = payload.get("counts") or {}
+    entry = {
+        "file": snapshot.name,
+        "createdAt": utc_now(),
+        "sourceUpdatedAt": payload.get("sourceUpdatedAt"),
+        "source": payload.get("source"),
+        "sourceChecksum": payload.get("sourceChecksum"),
+        "reportedAreas": counts.get("reportedAreas"),
+        "modelAreas": counts.get("modelAreas"),
+        "validReportedVotes": counts.get("validReportedVotes"),
+        "statusMessage": status.get("message"),
+    }
+    entries.append(entry)
+    manifest = {
+        "schema": "vallabbet-live-snapshot-manifest-v1",
+        "updatedAt": utc_now(),
+        "latest": entry,
+        "entries": entries,
+    }
+    write_json_atomic(manifest_path, manifest)
+    return manifest_path
+
+
 def relative_to_repo(repo_dir: Path, path: Path) -> str:
     return str(path.resolve().relative_to(repo_dir.resolve())).replace("\\", "/")
 
@@ -494,10 +521,13 @@ def run_once(config: dict, base_dir: Path) -> dict:
     write_json_atomic(public_dir / "current-riksdag.json", payload)
     if config.get("saveSnapshots", True):
         snapshot = save_snapshot(snapshot_dir, payload, "current-riksdag")
+        manifest = update_snapshot_manifest(snapshot_dir, snapshot, payload, status)
         try:
             status["snapshot"] = str(snapshot.relative_to(base_dir.parent)).replace("\\", "/")
+            status["snapshotManifest"] = str(manifest.relative_to(base_dir.parent)).replace("\\", "/")
         except ValueError:
             status["snapshot"] = snapshot.name
+            status["snapshotManifest"] = manifest.name
     fallback_result = maybe_publish_fallback(config, base_dir, payload, status)
     if fallback_result:
         status["fallbackGit"] = fallback_result
