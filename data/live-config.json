@@ -1,5 +1,5 @@
 {
   "autoLive": true,
-  "liveUrl": "",
+  "liveUrl": "https://office-eye-victoria-dogs.trycloudflare.com/data/live/current-riksdag.json",
   "fallbackUrl": "data/fallback/current-riksdag.json"
 }
