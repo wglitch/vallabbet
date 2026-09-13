@@ -35,6 +35,7 @@ let selectedCounty = "Jämtland";
 let showOpinion = false;
 let selectedCoalition = new Set(["M", "KD", "L", "SD"]);
 let opinionReference = null;
+let opinionReferenceUrl = "data/opinion-reference.json";
 
 const coalitionOptions = [
   { name: "Tidöpartierna", parties: ["M", "KD", "L", "SD"] },
@@ -883,15 +884,26 @@ function applyOpinionReference(reference) {
   renderTimeReplay();
 }
 
-function loadOpinionReference() {
-  fetch("data/opinion-reference.json")
-    .then((response) => response.ok ? response.json() : null)
+function liveOpinionUrl(liveUrl) {
+  if (!liveUrl) return null;
+  try {
+    return new URL("opinion-reference.json", liveUrl).href;
+  } catch {
+    return null;
+  }
+}
+
+function loadOpinionReference(url = opinionReferenceUrl) {
+  const fallbackUrl = "data/opinion-reference.json";
+  fetchJson(url)
+    .catch(() => url === fallbackUrl ? null : fetchJson(fallbackUrl))
     .then(applyOpinionReference)
     .catch(() => applyOpinionReference(null));
 }
 
-function start(data, loadMode = "replay") {
+function start(data, loadMode = "replay", options = {}) {
   payload = data;
+  opinionReferenceUrl = options.opinionUrl || opinionReferenceUrl;
   if (loadMode === "fallback") {
     document.querySelector("#mode-pill").textContent = "Reservfil";
     modeNoteText.textContent = "Liveflödet kunde inte läsas. Sidan visar senaste reservfil från GitHub, om den har hunnit publiceras.";
@@ -956,16 +968,16 @@ function startReplay(loadMode = "replay") {
     });
 }
 
-function startLiveCascade(liveUrl, fallbackUrl = fallbackDataUrl()) {
+function startLiveCascade(liveUrl, fallbackUrl = fallbackDataUrl(), options = {}) {
   if (liveUrl) {
     return fetchJson(liveUrl)
-      .then((data) => start(data, "live"))
+      .then((data) => start(data, "live", options))
       .catch(() => fetchJson(fallbackUrl)
-        .then((data) => start(data, "fallback"))
+        .then((data) => start(data, "fallback", options))
         .catch(() => startReplay("demo-after-live-error")));
   }
   return fetchJson(fallbackUrl)
-    .then((data) => start(data, "fallback"))
+    .then((data) => start(data, "fallback", options))
     .catch(() => startReplay("demo-after-live-error"));
 }
 
@@ -975,13 +987,15 @@ function loadStartupConfig() {
 
 const liveUrl = liveDataUrl();
 if (liveUrl) {
-  startLiveCascade(liveUrl);
+  startLiveCascade(liveUrl, fallbackDataUrl(), { opinionUrl: liveOpinionUrl(liveUrl) });
 } else if (new URLSearchParams(location.search).get("fallback") === "1") {
   startLiveCascade(null, fallbackDataUrl());
 } else if (window.RIKSDAG_REPLAY_DATA) {
   loadStartupConfig().then((config) => {
     if (config?.autoLive) {
-      startLiveCascade(config.liveUrl, config.fallbackUrl || fallbackDataUrl());
+      startLiveCascade(config.liveUrl, config.fallbackUrl || fallbackDataUrl(), {
+        opinionUrl: config.opinionUrl || liveOpinionUrl(config.liveUrl),
+      });
     } else {
       startReplay();
     }
@@ -989,7 +1003,9 @@ if (liveUrl) {
 } else {
   loadStartupConfig().then((config) => {
     if (config?.autoLive) {
-      startLiveCascade(config.liveUrl, config.fallbackUrl || fallbackDataUrl());
+      startLiveCascade(config.liveUrl, config.fallbackUrl || fallbackDataUrl(), {
+        opinionUrl: config.opinionUrl || liveOpinionUrl(config.liveUrl),
+      });
     } else {
       startReplay();
     }
