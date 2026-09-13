@@ -929,21 +929,42 @@ function startReplay(loadMode = "replay") {
     });
 }
 
+function startLiveCascade(liveUrl, fallbackUrl = fallbackDataUrl()) {
+  if (liveUrl) {
+    return fetchJson(liveUrl)
+      .then((data) => start(data, "live"))
+      .catch(() => fetchJson(fallbackUrl)
+        .then((data) => start(data, "fallback"))
+        .catch(() => startReplay("demo-after-live-error")));
+  }
+  return fetchJson(fallbackUrl)
+    .then((data) => start(data, "fallback"))
+    .catch(() => startReplay("demo-after-live-error"));
+}
+
+function loadStartupConfig() {
+  return fetchJson("data/live-config.json").catch(() => null);
+}
+
 const liveUrl = liveDataUrl();
 if (liveUrl) {
-  fetchJson(liveUrl)
-    .then((data) => start(data, "live"))
-    .catch(() => fetchJson(fallbackDataUrl())
-      .then((data) => start(data, "fallback"))
-      .catch(() => startReplay("demo-after-live-error")))
+  startLiveCascade(liveUrl);
 } else if (new URLSearchParams(location.search).get("fallback") === "1") {
-  fetchJson(fallbackDataUrl())
-    .then((data) => start(data, "fallback"))
-    .catch(() => {
-      startReplay("demo-after-live-error");
-    });
+  startLiveCascade(null, fallbackDataUrl());
 } else if (window.RIKSDAG_REPLAY_DATA) {
-  startReplay();
+  loadStartupConfig().then((config) => {
+    if (config?.autoLive) {
+      startLiveCascade(config.liveUrl, config.fallbackUrl || fallbackDataUrl());
+    } else {
+      startReplay();
+    }
+  });
 } else {
-  startReplay();
+  loadStartupConfig().then((config) => {
+    if (config?.autoLive) {
+      startLiveCascade(config.liveUrl, config.fallbackUrl || fallbackDataUrl());
+    } else {
+      startReplay();
+    }
+  });
 }

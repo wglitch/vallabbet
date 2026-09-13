@@ -1,0 +1,5 @@
+{
+  "autoLive": true,
+  "liveUrl": "",
+  "fallbackUrl": "data/fallback/current-riksdag.json"
+}
