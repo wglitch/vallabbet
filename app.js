@@ -123,7 +123,7 @@ function sumDistricts(districts, validKey, voteKey) {
 
 function splitAreasByTime(areas, cutoffMs) {
   const take = areas.findIndex((area) => !Number.isFinite(area.reportMs) || area.reportMs > cutoffMs);
-  const end = take === -1 ? areas.length : Math.max(1, take);
+  const end = take === -1 ? areas.length : Math.max(0, take);
   return {
     counted: areas.slice(0, end),
     uncounted: areas.slice(end),
@@ -179,6 +179,16 @@ function setupTimeline() {
   const validTimes = payload.districts
     .map((district) => district.reportMs)
     .filter(Number.isFinite);
+  if (!validTimes.length) {
+    const now = Date.now();
+    timeline = { minMs: now, maxMs: now, nightEndMs: now, nightMinutes: 0, finalStep: 0, empty: true };
+    coverageInput.min = "0";
+    coverageInput.max = "0";
+    coverageInput.step = "1";
+    coverageInput.value = "0";
+    timeScale.innerHTML = "";
+    return;
+  }
   const minMs = Math.min(...validTimes);
   const maxMs = Math.max(...validTimes);
   const firstDate = new Date(minMs);
@@ -822,6 +832,23 @@ function renderTimeReplay() {
   const officialCounted = payload.currentDistricts
     ? splitAreasByTime(payload.currentDistricts, cutoff.ms).counted
     : counted;
+  if (!counted.length || !officialCounted.length) {
+    coverageLabel.textContent = "Väntar";
+    countedDistricts.textContent = `0 / ${integer.format(payload.districts.length)}`;
+    countedVotes.textContent = "0";
+    liveUpdated.textContent = payload.sourceUpdatedAt
+      ? formatReplayTime(Date.parse(payload.sourceUpdatedAt))
+      : (payload.mode === "valmyndigheten-live" ? "Live" : "Replay");
+    partyTable.innerHTML = "<div class='empty-state'>Väntar på första rapporterade riksdagsresultat.</div>";
+    radioLine.innerHTML = "<p>Inga rapporterade resultat finns i livefilen ännu.</p>";
+    countyTable.innerHTML = "<div class='empty-state'>Väntar på rapporterade områden.</div>";
+    countyStory.innerHTML = "";
+    focusPanel.innerHTML = "";
+    countySignals.innerHTML = "";
+    districtSignals.innerHTML = "";
+    renderTabs();
+    return;
+  }
   const model = makeModel(counted);
   const result = forecastRows(counted, uncounted, model, officialCounted);
   coverageLabel.textContent = cutoff.isFinal ? "Slutläge" : formatReplayTime(cutoff.ms);

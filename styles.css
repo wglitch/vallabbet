@@ -325,6 +325,13 @@ input[type="range"] {
   margin-bottom: 0;
 }
 
+.empty-state {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 750;
+  padding: 22px 0;
+}
+
 .opinion-value {
   color: var(--muted);
   font-size: .82rem;
